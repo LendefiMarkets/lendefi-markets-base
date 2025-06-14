@@ -136,7 +136,7 @@ contract LendefiMarketFactoryTest is BasicDeploy {
         assertEq(market.baseAsset, address(usdcInstance));
         assertEq(market.name, "Lendefi Yield Token"); // This is the name used in deployMarketsWithUSDC
         assertEq(market.symbol, "LYTUSDC"); // This is the symbol used in deployMarketsWithUSDC
-        assertEq(market.decimals, 6);
+        assertEq(market.decimals, IERC20Metadata(address(usdcInstance)).decimals());
         assertTrue(market.active);
         assertTrue(market.core != address(0));
         assertTrue(market.baseVault != address(0));
@@ -177,7 +177,7 @@ contract LendefiMarketFactoryTest is BasicDeploy {
         LendefiCore usdtCore = LendefiCore(createdMarket.core);
 
         // Verify WAD is correctly set for 6 decimal token
-        assertEq(usdtCore.baseDecimals(), 1e6);
+        assertEq(usdtCore.baseDecimals(), 10 ** 6); // USDT has 6 decimals
     }
 
     function test_Revert_CreateMarket_Duplicate() public {
