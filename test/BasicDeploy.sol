@@ -101,6 +101,30 @@ contract BasicDeploy is Test {
     USDC internal usdcInstance;
     // IERC20 usdcInstance = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48); //real usdc ethereum for fork testing
 
+    // ==================== DYNAMIC AMOUNT HELPERS ====================
+    
+    /**
+     * @notice Helper function to get USDC amount scaled to its actual decimals
+     * @param baseAmount The base amount (e.g., 1000 for 1000 USDC)
+     * @return The amount scaled to USDC's decimal precision
+     */
+    function getUSDCAmount(uint256 baseAmount) internal view returns (uint256) {
+        if (address(usdcInstance) == address(0)) {
+            return baseAmount * 1e6; // Default to 6 decimals if USDC not deployed yet
+        }
+        return baseAmount * 10 ** usdcInstance.decimals();
+    }
+    
+    /**
+     * @notice Helper function to get a scaled amount for any ERC20 token
+     * @param token The token address
+     * @param baseAmount The base amount (e.g., 1000 for 1000 tokens)
+     * @return The amount scaled to the token's decimal precision
+     */
+    function getTokenAmount(address token, uint256 baseAmount) internal view returns (uint256) {
+        return baseAmount * 10 ** IERC20Metadata(token).decimals();
+    }
+
     function deployTokenUpgrade() internal {
         if (address(timelockInstance) == address(0)) {
             _deployTimelock();
