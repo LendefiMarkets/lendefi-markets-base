@@ -10,6 +10,7 @@ import {IASSETS} from "../../contracts/interfaces/IASSETS.sol";
 import {MockPriceOracle} from "../../contracts/mock/MockPriceOracle.sol";
 import {WETHPriceConsumerV3} from "../../contracts/mock/WETHOracle.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 
 /**
  * @title LendefiViewTest
@@ -21,14 +22,18 @@ contract LendefiViewTest is BasicDeploy {
     WETHPriceConsumerV3 public wethOracleInstance;
 
     // Test constants
-    uint256 constant INITIAL_DEPOSIT = 100_000e6; // 100k USDC
+    uint256 INITIAL_DEPOSIT; // 100k USDC - set dynamically
     uint256 constant WETH_COLLATERAL = 10 ether; // 10 WETH
-    uint256 constant BORROW_AMOUNT = 15_000e6; // 15k USDC
+    uint256 BORROW_AMOUNT; // 15k USDC - set dynamically
     uint256 constant ETH_PRICE = 2500e8; // $2500 per ETH
 
     function setUp() public {
         // Deploy complete system
         deployMarketsWithUSDC();
+        
+        // Set dynamic amounts
+        INITIAL_DEPOSIT = getUSDCAmount(100_000);
+        BORROW_AMOUNT = getUSDCAmount(15_000);
         vm.prank(guardian);
         tokenInstance.initializeTGE(address(ecoInstance), address(treasuryInstance));
 
@@ -47,10 +52,10 @@ contract LendefiViewTest is BasicDeploy {
             address(usdcInstance),
             IASSETS.Asset({
                 active: 1,
-                decimals: 6,
+                decimals: usdcInstance.decimals(),
                 borrowThreshold: 950,
                 liquidationThreshold: 980,
-                maxSupplyThreshold: 100_000_000e6,
+                maxSupplyThreshold: getUSDCAmount(100_000_000),
                 isolationDebtCap: 0,
                 assetMinimumOracles: 1,
                 porFeed: address(0),
@@ -150,8 +155,9 @@ contract LendefiViewTest is BasicDeploy {
         ILENDEFIVIEW.PositionSummary memory summary = lendefiView.getPositionSummary(bob, positionId);
 
         // Verify collateral value (10 ETH * $2500 = $25,000)
-        // ETH_PRICE is in 8 decimals, WETH_COLLATERAL is 18 decimals, result should be 6 decimals (USDC)
-        uint256 expectedCollateralValue = (WETH_COLLATERAL * ETH_PRICE) / 1e20;
+        // ETH_PRICE is in 8 decimals, WETH_COLLATERAL is 18 decimals, result should match USDC decimals
+        uint8 usdcDecimals = IERC20Metadata(address(usdcInstance)).decimals();
+        uint256 expectedCollateralValue = (WETH_COLLATERAL * ETH_PRICE) / (1e8 * 10**(18 - usdcDecimals));
         assertEq(summary.totalCollateralValue, expectedCollateralValue, "Collateral value should match");
 
         // Verify debt is at least the borrowed amount
@@ -202,7 +208,7 @@ contract LendefiViewTest is BasicDeploy {
         assertGt(lpTokenBalance, 0, "LP token balance should be positive");
 
         // USDC value should approximately equal deposited amount (might be slightly different due to interest)
-        assertApproxEqAbs(usdcValue, INITIAL_DEPOSIT, 1000e6, "USDC value should approximate deposit");
+        assertApproxEqAbs(usdcValue, INITIAL_DEPOSIT, getUSDCAmount(1000), "USDC value should approximate deposit");
 
         // Last accrual block is set to 0 (as noted in contract)
         assertEq(lastAccrualBlock, 0, "Last accrual block should be 0");
@@ -291,8 +297,8 @@ contract LendefiViewTest is BasicDeploy {
         _supplyCollateral(alice, position2, address(wethInstance), collateral2);
 
         // Borrow from both positions
-        _borrow(alice, position1, 8000e6);
-        _borrow(alice, position2, 4000e6);
+        _borrow(alice, position1, getUSDCAmount(8000));
+        _borrow(alice, position2, getUSDCAmount(4000));
 
         // Get summaries for both positions
         ILENDEFIVIEW.PositionSummary memory summary1 = lendefiView.getPositionSummary(alice, position1);
@@ -322,13 +328,13 @@ contract LendefiViewTest is BasicDeploy {
         ILendefiMarketVault.ProtocolConfig memory config = ILendefiMarketVault(address(marketVaultInstance)).protocolConfig();
         config.rewardAmount = 1_000e18; // Set target reward to 1000 tokens
         config.rewardInterval = 180 * 24 * 60 * 5; // 180 days in blocks (5 blocks per minute)
-        config.rewardableSupply = 50_000e6; // Set rewardable supply threshold to 50k USDC
+        config.rewardableSupply = getUSDCAmount(50_000); // Set rewardable supply threshold to 50k USDC
         marketVaultInstance.loadProtocolConfig(config);
 
         vm.stopPrank();
 
         // Charlie deposits enough to meet threshold
-        uint256 depositAmount = 150_000e6; // More than 50k threshold
+        uint256 depositAmount = getUSDCAmount(150_000); // More than 50k threshold
         usdcInstance.mint(charlie, depositAmount);
         vm.startPrank(charlie);
         usdcInstance.approve(address(marketCoreInstance), depositAmount);
@@ -355,7 +361,7 @@ contract LendefiViewTest is BasicDeploy {
 
         // Verify basic LP info
         assertGt(lpTokenBalance, 0, "LP token balance should be positive");
-        assertApproxEqAbs(usdcValue, depositAmount, 1000e6, "USDC value should approximate deposit");
+        assertApproxEqAbs(usdcValue, depositAmount, getUSDCAmount(1000), "USDC value should approximate deposit");
         assertEq(lastAccrualBlock, 0, "Last accrual block should be 0");
 
         // Verify reward eligibility and pending rewards
