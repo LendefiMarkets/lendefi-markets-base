@@ -12,6 +12,7 @@ import {MockUniswapV3Pool} from "../../../contracts/mock/MockUniswapV3Pool.sol";
 contract GetAssetPriceTest is BasicDeploy {
     // Token instances
     MockWBTC internal wbtcToken;
+    uint8 internal decimals;
 
     // Oracle instances
     WETHPriceConsumerV3 internal wethOracleInstance;
@@ -21,6 +22,7 @@ contract GetAssetPriceTest is BasicDeploy {
     function setUp() public {
         // Use deployMarketsWithUSDC() instead of deployComplete()
         deployMarketsWithUSDC();
+        decimals = usdcInstance.decimals();
 
         // TGE setup
         vm.prank(guardian);
@@ -236,14 +238,15 @@ contract GetAssetPriceTest is BasicDeploy {
 
         // Set up tick cumulatives for TWAP - price increasing over time
         int56[] memory tickCumulatives = new int56[](2);
+        int56 magicNumber = decimals == 6 ? int56(-70000) : int56(-268500);
         tickCumulatives[0] = 0; // At time T-30min
-        tickCumulatives[1] = 1800 * 600; // At current time, tick of 600 for 1800 seconds
+        tickCumulatives[1] = 1800 * magicNumber; // At time T (30 minutes later)
         mockUniswapPool.setTickCumulatives(tickCumulatives);
 
         // Set up seconds per liquidity
         uint160[] memory secondsPerLiquidityCumulatives = new uint160[](2);
-        secondsPerLiquidityCumulatives[0] = 1000;
-        secondsPerLiquidityCumulatives[1] = 2000;
+        secondsPerLiquidityCumulatives[0] = 1800;
+        secondsPerLiquidityCumulatives[1] = 1800;
         mockUniswapPool.setSecondsPerLiquidity(secondsPerLiquidityCumulatives);
 
         // Make sure observations succeed
@@ -276,7 +279,9 @@ contract GetAssetPriceTest is BasicDeploy {
 
         vm.stopPrank();
 
-        assetsInstance.getAssetPrice(address(wbtcToken));
+        uint256 wbtcPrice = assetsInstance.getAssetPrice(address(wbtcToken));
+        console2.log("Uniswap-only WBTC price:", wbtcPrice);
+        assertGt(wbtcPrice, 100000e6, "Uniswap-only path should return correct price");
     }
 
     function test_GetAssetPrice_OraclePathDocumentation() public {
