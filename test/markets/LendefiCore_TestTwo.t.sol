@@ -21,7 +21,7 @@ contract LendefiCoreAdditionalCoverageTest is BasicDeploy {
     TokenMock internal rwaToken;
 
     // Test constants
-    uint256 constant INITIAL_LIQUIDITY = 1_000_000e6; // 1M USDC
+    uint256 INITIAL_LIQUIDITY; // 1M USDC - set dynamically
     uint256 constant ETH_PRICE = 2500e8;
     uint256 constant RWA_PRICE = 100e8;
 
@@ -47,6 +47,9 @@ contract LendefiCoreAdditionalCoverageTest is BasicDeploy {
 
         // Deploy complete system
         deployMarketsWithUSDC();
+        
+        // Set dynamic amounts
+        INITIAL_LIQUIDITY = getUSDCAmount(1_000_000);
 
         // Deploy WETH and RWA token
         wethInstance = new WETH9();
@@ -60,10 +63,10 @@ contract LendefiCoreAdditionalCoverageTest is BasicDeploy {
             address(usdcInstance),
             IASSETS.Asset({
                 active: 1,
-                decimals: 6,
+                decimals: usdcInstance.decimals(),
                 borrowThreshold: 900,
                 liquidationThreshold: 950,
-                maxSupplyThreshold: 10_000_000e6,
+                maxSupplyThreshold: getUSDCAmount(10_000_000),
                 isolationDebtCap: 0,
                 assetMinimumOracles: 1,
                 porFeed: address(0),
@@ -102,7 +105,7 @@ contract LendefiCoreAdditionalCoverageTest is BasicDeploy {
                 borrowThreshold: 500,
                 liquidationThreshold: 600,
                 maxSupplyThreshold: 100_000e18,
-                isolationDebtCap: 50_000e6,
+                isolationDebtCap: getUSDCAmount(50_000),
                 assetMinimumOracles: 1,
                 porFeed: address(0),
                 primaryOracleType: IASSETS.OracleType.CHAINLINK,
@@ -161,13 +164,13 @@ contract LendefiCoreAdditionalCoverageTest is BasicDeploy {
         (uint256 credit, uint256 liqLevel, uint256 value) = marketCoreInstance.calculateLimits(bob, positionId);
 
         // Expected calculations:
-        // Value = 1 ETH * $2500 = $2500 (in 6 decimals = 2500e6)
+        // Value = 1 ETH * $2500 = $2500 (in USDC decimals)
         // Credit = $2500 * 80% (borrow threshold) = $2000
         // LiqLevel = $2500 * 85% (liquidation threshold) = $2125
 
-        assertEq(value, 2500e6, "Position value should be $2500");
-        assertEq(credit, 2000e6, "Credit limit should be $2000");
-        assertEq(liqLevel, 2125e6, "Liquidation level should be $2125");
+        assertEq(value, getUSDCAmount(2500), "Position value should be $2500");
+        assertEq(credit, getUSDCAmount(2000), "Credit limit should be $2000");
+        assertEq(liqLevel, getUSDCAmount(2125), "Liquidation level should be $2125");
     }
 
     /**
@@ -177,7 +180,7 @@ contract LendefiCoreAdditionalCoverageTest is BasicDeploy {
         // Setup: Create position and supply both WETH and USDC
         uint256 positionId = _createPosition(bob, address(wethInstance), false);
         uint256 wethAmount = 1 ether;
-        uint256 usdcAmount = 1000e6;
+        uint256 usdcAmount = getUSDCAmount(1000);
 
         deal(address(wethInstance), bob, wethAmount);
         deal(address(usdcInstance), bob, usdcAmount);
@@ -191,14 +194,14 @@ contract LendefiCoreAdditionalCoverageTest is BasicDeploy {
         // Expected calculations:
         // WETH Value = 1 ETH * $2500 = $2500
         // USDC Value = 1000 USDC = $1000
-        // Total Value = $3500 (in 6 decimals = 3500e6)
+        // Total Value = $3500 (in USDC decimals)
         //
         // Credit = (WETH: $2500 * 80%) + (USDC: $1000 * 90%) = $2000 + $900 = $2900
         // LiqLevel = (WETH: $2500 * 85%) + (USDC: $1000 * 95%) = $2125 + $950 = $3075
 
-        assertEq(value, 3500e6, "Position value should be $3500");
-        assertEq(credit, 2900e6, "Credit limit should be $2900");
-        assertEq(liqLevel, 3075e6, "Liquidation level should be $3075");
+        assertEq(value, getUSDCAmount(3500), "Position value should be $3500");
+        assertEq(credit, getUSDCAmount(2900), "Credit limit should be $2900");
+        assertEq(liqLevel, getUSDCAmount(3075), "Liquidation level should be $3075");
     }
 
     /**
@@ -216,13 +219,13 @@ contract LendefiCoreAdditionalCoverageTest is BasicDeploy {
         (uint256 credit, uint256 liqLevel, uint256 value) = marketCoreInstance.calculateLimits(bob, positionId);
 
         // Expected calculations:
-        // Value = 100 RWA * $100 = $10000 (in 6 decimals = 10000e6)
+        // Value = 100 RWA * $100 = $10000 (in USDC decimals)
         // Credit = $10000 * 50% (borrow threshold for isolated) = $5000
         // LiqLevel = $10000 * 60% (liquidation threshold for isolated) = $6000
 
-        assertEq(value, 10000e6, "Position value should be $10000");
-        assertEq(credit, 5000e6, "Credit limit should be $5000");
-        assertEq(liqLevel, 6000e6, "Liquidation level should be $6000");
+        assertEq(value, getUSDCAmount(10000), "Position value should be $10000");
+        assertEq(credit, getUSDCAmount(5000), "Credit limit should be $5000");
+        assertEq(liqLevel, getUSDCAmount(6000), "Liquidation level should be $6000");
     }
 
     /**
@@ -262,13 +265,13 @@ contract LendefiCoreAdditionalCoverageTest is BasicDeploy {
         (uint256 credit, uint256 liqLevel, uint256 value) = marketCoreInstance.calculateLimits(bob, positionId);
 
         // Expected calculations:
-        // Value = 1000 ETH * $2500 = $2,500,000 (in 6 decimals = 2500000e6)
+        // Value = 1000 ETH * $2500 = $2,500,000 (in USDC decimals)
         // Credit = $2,500,000 * 80% = $2,000,000
         // LiqLevel = $2,500,000 * 85% = $2,125,000
 
-        assertEq(value, 2500000e6, "Position value should be $2.5M");
-        assertEq(credit, 2000000e6, "Credit limit should be $2M");
-        assertEq(liqLevel, 2125000e6, "Liquidation level should be $2.125M");
+        assertEq(value, getUSDCAmount(2500000), "Position value should be $2.5M");
+        assertEq(credit, getUSDCAmount(2000000), "Credit limit should be $2M");
+        assertEq(liqLevel, getUSDCAmount(2125000), "Liquidation level should be $2.125M");
     }
 
     // ========== HELPER FUNCTIONS ==========
