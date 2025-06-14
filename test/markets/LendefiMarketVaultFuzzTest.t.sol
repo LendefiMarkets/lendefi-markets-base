@@ -7,24 +7,24 @@ import {LendefiCore} from "../../contracts/markets/LendefiCore.sol";
 import {LendefiMarketVault} from "../../contracts/markets/LendefiMarketVault.sol";
 
 contract LendefiMarketVaultFuzzTest is BasicDeploy {
-    // Constants
-    uint256 constant INITIAL_LIQUIDITY = 1_000_000e6;
+    uint8 public decimals;
+    uint256 public initialLiquidity;
 
     function setUp() public {
         // Deploy base contracts and market
         deployMarketsWithUSDC();
+        decimals = usdcInstance.decimals();
+        initialLiquidity = getUSDCAmount(1_000_000); // 1M USDC
 
         // Setup TGE
         vm.prank(guardian);
         tokenInstance.initializeTGE(address(ecoInstance), address(treasuryInstance));
 
         // Setup initial liquidity for vault tests
-        deal(address(usdcInstance), alice, INITIAL_LIQUIDITY);
+        deal(address(usdcInstance), alice, initialLiquidity);
         vm.startPrank(alice);
-        usdcInstance.approve(address(marketCoreInstance), INITIAL_LIQUIDITY);
-        marketCoreInstance.depositLiquidity(
-            INITIAL_LIQUIDITY, marketVaultInstance.previewDeposit(INITIAL_LIQUIDITY), 100
-        );
+        usdcInstance.approve(address(marketCoreInstance), initialLiquidity);
+        marketCoreInstance.depositLiquidity(initialLiquidity, marketVaultInstance.previewDeposit(initialLiquidity), 100);
         vm.stopPrank();
     }
 
@@ -32,7 +32,7 @@ contract LendefiMarketVaultFuzzTest is BasicDeploy {
 
     function testFuzz_DepositAndWithdraw(uint256 assets, uint256 withdrawRatio) public {
         // Bound inputs
-        assets = bound(assets, 1e6, 1_000_000e6); // 1 to 1M USDC
+        assets = bound(assets, getUSDCAmount(1), getUSDCAmount(1_000_000)); // 1 to 1M USDC
         withdrawRatio = bound(withdrawRatio, 1, 100); // 1-100%
 
         deal(address(usdcInstance), charlie, assets);
@@ -61,7 +61,7 @@ contract LendefiMarketVaultFuzzTest is BasicDeploy {
 
     function testFuzz_MintAndRedeem(uint256 shares, uint256 redeemRatio) public {
         // Bound inputs
-        shares = bound(shares, 1e6, 1_000_000e6);
+        shares = bound(shares, getUSDCAmount(1), getUSDCAmount(1_000_000));
         redeemRatio = bound(redeemRatio, 1, 100);
 
         uint256 assets = marketVaultInstance.previewMint(shares);
@@ -125,7 +125,7 @@ contract LendefiMarketVaultFuzzTest is BasicDeploy {
             try marketVaultInstance.flashLoan(address(flashReceiver), loanAmount, "") {
                 // Flash loan succeeded
                 assertEq(usdcInstance.balanceOf(address(marketVaultInstance)), vaultBalanceBefore + expectedFee);
-                assertEq(marketVaultInstance.totalBase(), INITIAL_LIQUIDITY + expectedFee);
+                assertEq(marketVaultInstance.totalBase(), initialLiquidity + expectedFee);
             } catch {
                 // Flash loan failed - this is acceptable for extreme values
             }
@@ -191,7 +191,7 @@ contract LendefiMarketVaultFuzzTest is BasicDeploy {
 
     function testFuzz_Utilization(uint256 supplyAmount, uint256 borrowRatio) public {
         // Bound inputs
-        supplyAmount = bound(supplyAmount, 10_000e6, 10_000_000e6);
+        supplyAmount = bound(supplyAmount, getUSDCAmount(10_000), getUSDCAmount(10_000_000));
         borrowRatio = bound(borrowRatio, 0, 100);
 
         // Add more supply
@@ -209,7 +209,7 @@ contract LendefiMarketVaultFuzzTest is BasicDeploy {
             marketVaultInstance.borrow(borrowAmount, bob);
 
             uint256 utilization = marketVaultInstance.utilization();
-            uint256 expectedUtilization = (borrowAmount * 1e6) / totalSupply;
+            uint256 expectedUtilization = (borrowAmount * 10 ** decimals) / totalSupply;
 
             assertEq(utilization, expectedUtilization);
         } else {
@@ -221,7 +221,7 @@ contract LendefiMarketVaultFuzzTest is BasicDeploy {
 
     function testFuzz_YieldBoost(uint256 boostAmount, uint256 numBoosts) public {
         // Bound inputs
-        boostAmount = bound(boostAmount, 1e6, 100_000e6);
+        boostAmount = bound(boostAmount, getUSDCAmount(1), getUSDCAmount(100_000));
         numBoosts = bound(numBoosts, 1, 10);
 
         uint256 totalBoost = boostAmount * numBoosts;
@@ -247,13 +247,13 @@ contract LendefiMarketVaultFuzzTest is BasicDeploy {
 
     function testFuzz_SharePriceManipulation(uint256 donationAmount) public {
         // Test resistance to donation attacks
-        donationAmount = bound(donationAmount, 1e6, 1_000_000e6);
+        donationAmount = bound(donationAmount, getUSDCAmount(1), getUSDCAmount(1_000_000));
 
         // Roll to next block since alice already deposited in setUp
         vm.roll(block.number + 1);
 
         // Alice deposits first
-        uint256 aliceDeposit = 1000e6;
+        uint256 aliceDeposit = getUSDCAmount(1000);
         deal(address(usdcInstance), alice, aliceDeposit);
 
         vm.startPrank(alice);
@@ -261,19 +261,19 @@ contract LendefiMarketVaultFuzzTest is BasicDeploy {
         uint256 aliceShares = marketVaultInstance.deposit(aliceDeposit, alice);
         vm.stopPrank();
 
-        uint256 sharePriceBefore = marketVaultInstance.previewRedeem(1e6);
+        uint256 sharePriceBefore = marketVaultInstance.previewRedeem(getUSDCAmount(1));
 
         // Attacker donates to vault
         deal(address(usdcInstance), address(marketVaultInstance), donationAmount);
 
-        uint256 sharePriceAfter = marketVaultInstance.previewRedeem(1e6);
+        uint256 sharePriceAfter = marketVaultInstance.previewRedeem(getUSDCAmount(1));
 
         // Share price should not change from donations
         // totalAssets() uses totalBase, not balanceOf
         assertEq(sharePriceBefore, sharePriceAfter);
 
         // Bob deposits after donation
-        uint256 bobDeposit = 1000e6;
+        uint256 bobDeposit = getUSDCAmount(1000);
         deal(address(usdcInstance), bob, bobDeposit);
 
         vm.startPrank(bob);
@@ -291,7 +291,7 @@ contract LendefiMarketVaultFuzzTest is BasicDeploy {
         // Bound inputs
         numDepositors = bound(numDepositors, 1, 10);
         numBorrows = bound(numBorrows, 0, numDepositors);
-        baseAmount = bound(baseAmount, 1000e6, 100_000e6);
+        baseAmount = bound(baseAmount, getUSDCAmount(1000), getUSDCAmount(100_000));
 
         // Roll to next block since alice already deposited in setUp
         vm.roll(block.number + 1);
@@ -320,7 +320,7 @@ contract LendefiMarketVaultFuzzTest is BasicDeploy {
             }
         }
 
-        assertEq(marketVaultInstance.totalSuppliedLiquidity(), INITIAL_LIQUIDITY + totalDeposited);
+        assertEq(marketVaultInstance.totalSuppliedLiquidity(), initialLiquidity + totalDeposited);
 
         // Multiple borrows
         uint256 totalBorrowed;
@@ -338,7 +338,7 @@ contract LendefiMarketVaultFuzzTest is BasicDeploy {
 
         // Verify state consistency
         assertEq(marketVaultInstance.totalBorrow(), totalBorrowed);
-        assertLe(marketVaultInstance.utilization(), 0.8e6); // <= 80%
+        assertLe(marketVaultInstance.utilization(), (10 ** decimals) * 5 / 4); // <= 80%
 
         // Everyone can still withdraw remaining funds
         for (uint256 i = 0; i < numDepositors; i++) {
@@ -413,24 +413,27 @@ contract LendefiMarketVaultFuzzTest is BasicDeploy {
             marketVaultInstance.pause();
         } else if (role == 1) {
             // Test borrow (requires PROTOCOL_ROLE)
+            uint256 borrowAmount = 1000 * 10 ** usdcInstance.decimals();
             vm.prank(caller);
             vm.expectRevert();
-            marketVaultInstance.borrow(1000e6, caller);
+            marketVaultInstance.borrow(borrowAmount, caller);
         } else if (role == 2) {
             // Test repay (requires PROTOCOL_ROLE)
-            deal(address(usdcInstance), caller, 1000e6);
+            uint256 repayAmount = 1000 * 10 ** usdcInstance.decimals();
+            deal(address(usdcInstance), caller, repayAmount);
             vm.startPrank(caller);
-            usdcInstance.approve(address(marketVaultInstance), 1000e6);
+            usdcInstance.approve(address(marketVaultInstance), repayAmount);
             vm.expectRevert();
-            marketVaultInstance.repay(1000e6, caller);
+            marketVaultInstance.repay(repayAmount, caller);
             vm.stopPrank();
         } else {
             // Test boostYield (requires PROTOCOL_ROLE)
-            deal(address(usdcInstance), caller, 1000e6);
+            uint256 boostAmount = 1000 * 10 ** usdcInstance.decimals();
+            deal(address(usdcInstance), caller, boostAmount);
             vm.startPrank(caller);
-            usdcInstance.approve(address(marketVaultInstance), 1000e6);
+            usdcInstance.approve(address(marketVaultInstance), boostAmount);
             vm.expectRevert();
-            marketVaultInstance.boostYield(caller, 1000e6);
+            marketVaultInstance.boostYield(caller, boostAmount);
             vm.stopPrank();
         }
     }
