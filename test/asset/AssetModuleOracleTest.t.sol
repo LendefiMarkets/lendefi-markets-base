@@ -15,6 +15,7 @@ contract AssetModuleOracleTest is BasicDeploy {
     // Test tokens
     MockRWA internal rwaToken;
     MockRWA internal stableToken;
+    uint8 internal decimals;
 
     // Mock oracles
     MockPriceOracle internal mockOracle1;
@@ -53,6 +54,7 @@ contract AssetModuleOracleTest is BasicDeploy {
     function setUp() public {
         // Initial deployment with oracle
         deployMarketsWithUSDC();
+        decimals = usdcInstance.decimals();
 
         // Deploy test tokens
         wethInstance = new WETH9();
@@ -585,9 +587,10 @@ contract AssetModuleOracleTest is BasicDeploy {
         // IMPORTANT: Set up tick values that will produce a price of 1500e6
         int56[] memory tickCumulatives = new int56[](2);
         // At index 0: OLDER timestamp (1800 seconds ago)
+        int56 magicNumber = decimals == 6 ? int56(203200) : int56(5000);
         tickCumulatives[0] = 0;
         // At index 1: NEWER timestamp (now)
-        tickCumulatives[1] = 203200 * 1800; // 7,299,000
+        tickCumulatives[1] = 1800 * magicNumber; // 7,299,000
         uniswapPool.setTickCumulatives(tickCumulatives); // $1500
 
         // Set up seconds per liquidity (values don't matter much, just can't be 0)
@@ -630,8 +633,9 @@ contract AssetModuleOracleTest is BasicDeploy {
 
         // Set tick values to produce a valid price close to $1500
         int56[] memory tickCumulatives = new int56[](2);
+        int56 magicNumber = decimals == 6 ? int56(203200) : int56(5000);
         tickCumulatives[0] = 0;
-        tickCumulatives[1] = 203200 * 1800; // Adjusted tick value for ~$1500 price
+        tickCumulatives[1] = 1800 * magicNumber; // Adjusted tick value for ~$1500 price
         uniswapPool.setTickCumulatives(tickCumulatives);
 
         // Setup liquidity data
