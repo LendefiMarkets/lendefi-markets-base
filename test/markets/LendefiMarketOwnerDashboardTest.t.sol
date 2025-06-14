@@ -8,6 +8,7 @@ import {ILendefiMarketVault} from "../../contracts/interfaces/ILendefiMarketVaul
 import {LendefiMarketFactory} from "../../contracts/markets/LendefiMarketFactory.sol";
 import {TokenMock} from "../../contracts/mock/TokenMock.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Metadata} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract LendefiMarketOwnerDashboardTest is BasicDeploy {
@@ -43,10 +44,10 @@ contract LendefiMarketOwnerDashboardTest is BasicDeploy {
         tokenInstance.initializeTGE(address(ecoInstance), address(treasuryInstance));
 
         // Fund users for testing
-        deal(address(usdcInstance), alice, 10000e6);
+        deal(address(usdcInstance), alice, getUSDCAmount(10000));
         deal(address(daiToken), alice, 10000e18);
         deal(address(wethToken), alice, 10e18);
-        deal(address(usdcInstance), bob, 5000e6);
+        deal(address(usdcInstance), bob, getUSDCAmount(5000));
         deal(address(daiToken), bob, 5000e18);
     }
 
@@ -82,7 +83,7 @@ contract LendefiMarketOwnerDashboardTest is BasicDeploy {
             if (overviews[i].baseAsset == address(usdcInstance)) {
                 foundUSDC = true;
                 assertEq(overviews[i].baseAssetSymbol, "USDC");
-                assertEq(overviews[i].baseAssetDecimals, 6);
+                assertEq(overviews[i].baseAssetDecimals, IERC20Metadata(address(usdcInstance)).decimals());
                 assertEq(overviews[i].marketName, "Lendefi Yield Token");
                 assertEq(overviews[i].marketSymbol, "LYTUSDC");
                 assertTrue(overviews[i].active);
@@ -109,7 +110,7 @@ contract LendefiMarketOwnerDashboardTest is BasicDeploy {
 
         assertEq(overview.baseAsset, address(daiToken));
         assertEq(overview.baseAssetSymbol, "DAI");
-        assertEq(overview.baseAssetDecimals, 18);
+        assertEq(overview.baseAssetDecimals, IERC20Metadata(address(daiToken)).decimals());
         assertEq(overview.marketName, "Lendefi DAI Market");
         assertEq(overview.marketSymbol, "lfDAI");
         assertTrue(overview.active);
@@ -150,8 +151,9 @@ contract LendefiMarketOwnerDashboardTest is BasicDeploy {
         IPROTOCOL.Market memory usdcMarket = marketFactoryInstance.getMarketInfo(charlie, address(usdcInstance));
 
         vm.startPrank(alice);
-        usdcInstance.approve(usdcMarket.baseVault, 1000e6);
-        ILendefiMarketVault(usdcMarket.baseVault).deposit(1000e6, alice);
+        uint256 depositAmount = getUSDCAmount(1000);
+        usdcInstance.approve(usdcMarket.baseVault, depositAmount);
+        ILendefiMarketVault(usdcMarket.baseVault).deposit(depositAmount, alice);
         vm.stopPrank();
 
         ILendefiMarketOwnerDashboard.OwnerPortfolioStats memory stats = ownerDashboard.getOwnerPortfolioStats(charlie);
@@ -278,8 +280,9 @@ contract LendefiMarketOwnerDashboardTest is BasicDeploy {
 
         vm.startPrank(alice);
         // USDC market
-        usdcInstance.approve(usdcMarket.baseVault, 5000e6);
-        ILendefiMarketVault(usdcMarket.baseVault).deposit(5000e6, alice);
+        uint256 aliceDeposit = getUSDCAmount(5000);
+        usdcInstance.approve(usdcMarket.baseVault, aliceDeposit);
+        ILendefiMarketVault(usdcMarket.baseVault).deposit(aliceDeposit, alice);
 
         // DAI market
         daiToken.approve(daiMarket.baseVault, 3000e18);
@@ -288,8 +291,9 @@ contract LendefiMarketOwnerDashboardTest is BasicDeploy {
 
         // Bob provides liquidity to USDC market
         vm.startPrank(bob);
-        usdcInstance.approve(usdcMarket.baseVault, 2000e6);
-        ILendefiMarketVault(usdcMarket.baseVault).deposit(2000e6, bob);
+        uint256 bobDeposit = getUSDCAmount(2000);
+        usdcInstance.approve(usdcMarket.baseVault, bobDeposit);
+        ILendefiMarketVault(usdcMarket.baseVault).deposit(bobDeposit, bob);
         vm.stopPrank();
 
         // Test all owner dashboard functions work together
@@ -306,7 +310,7 @@ contract LendefiMarketOwnerDashboardTest is BasicDeploy {
         assertEq(analytics.length, 3);
 
         // Verify TVL is correctly aggregated across markets
-        assertGt(stats.totalPortfolioTVL, 5000e6); // At least Alice's USDC deposit
+        assertGt(stats.totalPortfolioTVL, getUSDCAmount(5000)); // At least Alice's USDC deposit
         assertEq(stats.portfolioHealthScore, 1000); // Still perfect health (no debt)
     }
 
