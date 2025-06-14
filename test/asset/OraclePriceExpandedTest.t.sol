@@ -21,6 +21,7 @@ contract OraclePriceExpandedTest is BasicDeploy {
 
     // Test tokens
     MockRWA internal testAsset;
+    uint8 internal decimals;
 
     // Uniswap mock
     MockUniswapV3Pool internal mockUniswapPool;
@@ -30,6 +31,7 @@ contract OraclePriceExpandedTest is BasicDeploy {
 
     function setUp() public {
         deployMarketsWithUSDC();
+        decimals = usdcInstance.decimals();
 
         // TGE setup
         vm.prank(guardian);
@@ -403,13 +405,14 @@ contract OraclePriceExpandedTest is BasicDeploy {
 
         // Configure tick cumulatives for a predictable price
         int56[] memory tickCumulatives = new int56[](2);
+        int56 magicNumber = decimals == 6 ? int56(203200) : int56(5000);
         tickCumulatives[0] = 0;
-        tickCumulatives[1] = 203200 * 1800; // Simulate a higher tick value ~$1500
+        tickCumulatives[1] = 1800 * magicNumber; // 203200, Simulate a higher tick value ~$1500
         newPool.setTickCumulatives(tickCumulatives);
 
         uint160[] memory secondsPerLiquidityCumulatives = new uint160[](2);
-        secondsPerLiquidityCumulatives[0] = 1000;
-        secondsPerLiquidityCumulatives[1] = 2000;
+        secondsPerLiquidityCumulatives[0] = 1800;
+        secondsPerLiquidityCumulatives[1] = 1800;
         newPool.setSecondsPerLiquidity(secondsPerLiquidityCumulatives);
         newPool.setObserveSuccess(true);
 
@@ -431,10 +434,11 @@ contract OraclePriceExpandedTest is BasicDeploy {
         uint256 uniswapPrice =
             assetsInstance.getAssetPriceByType(address(testAsset), IASSETS.OracleType.UNISWAP_V3_TWAP);
         assertTrue(uniswapPrice > 0, "Uniswap price should be greater than 0");
+        console2.log("Uniswap price:", uniswapPrice);
 
         // Calculate the median price
         uint256 medianPrice = assetsInstance.getAssetPrice(address(testAsset));
-        // console2.log("Median price:", medianPrice);
+        console2.log("Median price:", medianPrice);
 
         // Assert the median price is within the expected range
         assertTrue(medianPrice >= 1200e6 && medianPrice <= 1300e6, "Median price should be in a reasonable range");
