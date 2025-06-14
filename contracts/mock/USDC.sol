@@ -5,7 +5,7 @@ import {ERC20Mock} from "./ERC20Mock.sol";
 
 contract USDC is ERC20Mock("USD Coin", "USDC") {
     function drip(address to) public {
-        _mint(to, 20000e6);
+        _mint(to, 20000 * 10 ** decimals());
     }
 
     function mint(address to, uint256 amount) public {
