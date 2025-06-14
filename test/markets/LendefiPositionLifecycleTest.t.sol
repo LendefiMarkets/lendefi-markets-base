@@ -14,12 +14,12 @@ import {MockPriceOracle} from "../../contracts/mock/MockPriceOracle.sol";
  *      Validates balances for all parties: lender, borrower, timelock (commission), vault
  */
 contract LendefiPositionLifecycleTest is Test, BasicDeploy {
-    uint256 constant INITIAL_DEPOSIT = 100_000e6; // 100k USDC liquidity
-    uint256 constant BORROW_AMOUNT = 100_000e6; // Borrow entire liquidity pool
+    uint256 INITIAL_DEPOSIT; // 100k USDC liquidity - set dynamically
+    uint256 BORROW_AMOUNT; // Borrow entire liquidity pool - set dynamically
     uint256 constant COLLATERAL_AMOUNT = 50e18; // 50 WETH collateral (need more for 100k borrow)
-    uint256 constant YIELD_BOOST = 10_000e6; // 10k USDC yield from liquidations
+    uint256 YIELD_BOOST; // 10k USDC yield from liquidations - set dynamically
     uint256 constant ONE_YEAR = 365 days;
-    uint256 constant EXPECTED_INTEREST = 6_000e6; // 6% of 100k = 6k USDC
+    uint256 EXPECTED_INTEREST; // 6% of 100k = 6k USDC - set dynamically
 
     address testAlice = address(0xA11CE); // Liquidity provider
     address testBob = address(0xB0B); // Borrower
@@ -43,6 +43,12 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
 
     function setUp() public {
         deployMarketsWithUSDC();
+        
+        // Set dynamic amounts
+        INITIAL_DEPOSIT = getUSDCAmount(100_000);
+        BORROW_AMOUNT = getUSDCAmount(100_000);
+        YIELD_BOOST = getUSDCAmount(10_000);
+        EXPECTED_INTEREST = getUSDCAmount(6_000);
 
         // Deploy WETH
         if (address(wethInstance) == address(0)) {
@@ -60,10 +66,10 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
         vm.startPrank(address(timelockInstance));
         IASSETS.Asset memory usdcAsset = IASSETS.Asset({
             active: 1,
-            decimals: 6,
+            decimals: usdcInstance.decimals(),
             borrowThreshold: 950, // 95% LTV for stablecoin
             liquidationThreshold: 980, // 98% liquidation for stablecoin
-            maxSupplyThreshold: 100_000_000e6, // 100M USDC
+            maxSupplyThreshold: getUSDCAmount(100_000_000), // 100M USDC
             isolationDebtCap: 0,
             assetMinimumOracles: 1,
             porFeed: address(0),
@@ -98,7 +104,7 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
 
         // Give users USDC
         usdcInstance.mint(testAlice, INITIAL_DEPOSIT); // Alice only needs 100k for deposit
-        usdcInstance.mint(testBob, 150_000e6); // Give Bob enough USDC for repayment with interest (106k + buffer)
+        usdcInstance.mint(testBob, getUSDCAmount(150_000)); // Give Bob enough USDC for repayment with interest (106k + buffer)
 
         // Give Bob WETH
         deal(address(wethInstance), testBob, COLLATERAL_AMOUNT);
@@ -149,7 +155,7 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
         vm.warp(block.timestamp + 1);
 
         uint256 expectedShares = marketVaultInstance.previewDeposit(INITIAL_DEPOSIT);
-        console2.log("Expected shares for deposit:", expectedShares / 1e6);
+        console2.log("Expected shares for deposit:", expectedShares / 10 ** usdcInstance.decimals());
 
         marketCoreInstance.depositLiquidity(INITIAL_DEPOSIT, expectedShares, 100);
         vm.stopPrank();
@@ -158,8 +164,8 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
     function _step2_BobBorrowsAgainstCollateral() internal returns (uint256 positionId) {
         console2.log("\n=== STEP 2: BOB BORROWS AGAINST COLLATERAL ===");
 
-        console2.log("Vault USDC before borrow:", usdcInstance.balanceOf(address(marketVaultInstance)) / 1e6);
-        console2.log("Bob USDC before borrow:", usdcInstance.balanceOf(testBob) / 1e6);
+        console2.log("Vault USDC before borrow:", usdcInstance.balanceOf(address(marketVaultInstance)) / 10 ** usdcInstance.decimals());
+        console2.log("Bob USDC before borrow:", usdcInstance.balanceOf(testBob) / 10 ** usdcInstance.decimals());
 
         vm.startPrank(testBob);
         wethInstance.approve(address(marketCoreInstance), COLLATERAL_AMOUNT);
@@ -176,7 +182,7 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
 
         // Check actual credit limit to debug
         uint256 actualCreditLimit = marketCoreInstance.calculateCreditLimit(testBob, positionId);
-        console2.log("Actual credit limit:", actualCreditLimit / 1e6);
+        console2.log("Actual credit limit:", actualCreditLimit / 10 ** usdcInstance.decimals());
 
         // Borrow against the position
         // With 50 WETH at $2500 and 80% LTV: 50 * 2500 * 0.8 = $100,000 = 100,000 USDC credit limit
@@ -184,10 +190,10 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
         marketCoreInstance.borrow(positionId, BORROW_AMOUNT, expectedCreditLimit, 100);
         vm.stopPrank();
 
-        console2.log("Vault USDC after borrow:", usdcInstance.balanceOf(address(marketVaultInstance)) / 1e6);
-        console2.log("Bob USDC after borrow:", usdcInstance.balanceOf(testBob) / 1e6);
-        console2.log("Vault totalBorrow:", marketVaultInstance.totalBorrow() / 1e6);
-        console2.log("Vault totalBase:", marketVaultInstance.totalBase() / 1e6);
+        console2.log("Vault USDC after borrow:", usdcInstance.balanceOf(address(marketVaultInstance)) / 10 ** usdcInstance.decimals());
+        console2.log("Bob USDC after borrow:", usdcInstance.balanceOf(testBob) / 10 ** usdcInstance.decimals());
+        console2.log("Vault totalBorrow:", marketVaultInstance.totalBorrow() / 10 ** usdcInstance.decimals());
+        console2.log("Vault totalBase:", marketVaultInstance.totalBase() / 10 ** usdcInstance.decimals());
     }
 
     function _step3_TimePassesAndYieldBoost() internal {
@@ -208,8 +214,8 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
         usdcOracle.setPrice(1e8); // Reset USDC price
         usdcOracle.setTimestamp(block.timestamp); // Update USDC timestamp
 
-        console2.log("Vault USDC before boost:", usdcInstance.balanceOf(address(marketVaultInstance)) / 1e6);
-        console2.log("Vault totalBase before boost:", marketVaultInstance.totalBase() / 1e6);
+        console2.log("Vault USDC before boost:", usdcInstance.balanceOf(address(marketVaultInstance)) / 10 ** usdcInstance.decimals());
+        console2.log("Vault totalBase before boost:", marketVaultInstance.totalBase() / 10 ** usdcInstance.decimals());
 
         // Add yield boost (simulating liquidation profits)
         deal(address(usdcInstance), address(timelockInstance), YIELD_BOOST);
@@ -219,8 +225,8 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
         marketVaultInstance.boostYield(testAlice, YIELD_BOOST);
         vm.stopPrank();
 
-        console2.log("Vault USDC after boost:", usdcInstance.balanceOf(address(marketVaultInstance)) / 1e6);
-        console2.log("Vault totalBase after boost:", marketVaultInstance.totalBase() / 1e6);
+        console2.log("Vault USDC after boost:", usdcInstance.balanceOf(address(marketVaultInstance)) / 10 ** usdcInstance.decimals());
+        console2.log("Vault totalBase after boost:", marketVaultInstance.totalBase() / 10 ** usdcInstance.decimals());
 
         // Check rates after time passes and boost
         uint256 borrowRateAfter = marketCoreInstance.getBorrowRate(IASSETS.CollateralTier.CROSS_A);
@@ -230,7 +236,7 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
 
         // Log accrued interest before repayment
         uint256 accruedInterest = marketVaultInstance.totalAccruedInterest();
-        console2.log("Total accrued interest after 1 year:", accruedInterest / 1e6);
+        console2.log("Total accrued interest after 1 year:", accruedInterest / 10 ** usdcInstance.decimals());
     }
 
     function _step4_BobRepaysLoan(uint256 positionId) internal {
@@ -238,23 +244,23 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
 
         // Calculate actual debt with interest
         uint256 actualDebt = marketCoreInstance.calculateDebtWithInterest(testBob, positionId);
-        console2.log("Actual debt with interest:", actualDebt / 1e6);
-        console2.log("Expected debt (principal + 6% interest):", (BORROW_AMOUNT + EXPECTED_INTEREST) / 1e6);
+        console2.log("Actual debt with interest:", actualDebt / 10 ** usdcInstance.decimals());
+        console2.log("Expected debt (principal + 6% interest):", (BORROW_AMOUNT + EXPECTED_INTEREST) / 10 ** usdcInstance.decimals());
 
         // Note: The actual interest might be higher due to compounding and rate calculations
         // Log the interest calculation details
         uint256 interestAmount = actualDebt - BORROW_AMOUNT;
         uint256 interestRate = (interestAmount * 10000) / BORROW_AMOUNT; // basis points
-        console2.log("Interest amount:", interestAmount / 1e6);
+        console2.log("Interest amount:", interestAmount / 10 ** usdcInstance.decimals());
         console2.log("Effective interest rate (bps):", interestRate);
         console2.log("Expected interest rate: 600 bps (6%)");
 
-        console2.log("Vault USDC before repay:", usdcInstance.balanceOf(address(marketVaultInstance)) / 1e6);
-        console2.log("Vault totalBase before repay:", marketVaultInstance.totalBase() / 1e6);
-        console2.log("Vault totalBorrow before repay:", marketVaultInstance.totalBorrow() / 1e6);
+        console2.log("Vault USDC before repay:", usdcInstance.balanceOf(address(marketVaultInstance)) / 10 ** usdcInstance.decimals());
+        console2.log("Vault totalBase before repay:", marketVaultInstance.totalBase() / 10 ** usdcInstance.decimals());
+        console2.log("Vault totalBorrow before repay:", marketVaultInstance.totalBorrow() / 10 ** usdcInstance.decimals());
 
         // Use actual debt for repayment
-        uint256 repaymentAmount = actualDebt + 100e6; // Add small buffer
+        uint256 repaymentAmount = actualDebt + getUSDCAmount(100); // Add small buffer
 
         // Ensure Bob has enough USDC to repay
         if (usdcInstance.balanceOf(testBob) < repaymentAmount) {
@@ -271,9 +277,9 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
         marketCoreInstance.repay(positionId, repaymentAmount, expectedDebt, 100);
         vm.stopPrank();
 
-        console2.log("Vault USDC after repay:", usdcInstance.balanceOf(address(marketVaultInstance)) / 1e6);
-        console2.log("Vault totalBase after repay:", marketVaultInstance.totalBase() / 1e6);
-        console2.log("Vault totalBorrow after repay:", marketVaultInstance.totalBorrow() / 1e6);
+        console2.log("Vault USDC after repay:", usdcInstance.balanceOf(address(marketVaultInstance)) / 10 ** usdcInstance.decimals());
+        console2.log("Vault totalBase after repay:", marketVaultInstance.totalBase() / 10 ** usdcInstance.decimals());
+        console2.log("Vault totalBorrow after repay:", marketVaultInstance.totalBorrow() / 10 ** usdcInstance.decimals());
     }
 
     function _step5_BobWithdrawsCollateral(uint256 positionId) internal {
@@ -302,17 +308,17 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
         vm.roll(block.number + 1);
         vm.warp(block.timestamp + 1);
 
-        console2.log("Total vault value:", marketVaultInstance.totalBase() / 1e6);
-        console2.log("Alice's shares:", marketVaultInstance.balanceOf(testAlice) / 1e6);
+        console2.log("Total vault value:", marketVaultInstance.totalBase() / 10 ** usdcInstance.decimals());
+        console2.log("Alice's shares:", marketVaultInstance.balanceOf(testAlice) / 10 ** usdcInstance.decimals());
 
         // Alice withdraws her maximum available amount
         uint256 maxWithdrawAmount = marketVaultInstance.maxWithdraw(testAlice);
-        console2.log("Alice withdrawing:", maxWithdrawAmount / 1e6);
+        console2.log("Alice withdrawing:", maxWithdrawAmount / 10 ** usdcInstance.decimals());
 
         marketVaultInstance.withdraw(maxWithdrawAmount, testAlice, testAlice);
 
         console2.log(
-            "Commission shares minted to timelock:", marketVaultInstance.balanceOf(marketVaultInstance.timelock()) / 1e6
+            "Commission shares minted to timelock:", marketVaultInstance.balanceOf(marketVaultInstance.timelock()) / 10 ** usdcInstance.decimals()
         );
         vm.stopPrank();
     }
@@ -324,17 +330,17 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
         _logBalanceSnapshot("FINAL", finalSnapshot);
 
         // Commission Results
-        console2.log("Timelock commission shares:", finalSnapshot.timelockShares / 1e6);
+        console2.log("Timelock commission shares:", finalSnapshot.timelockShares / 10 ** usdcInstance.decimals());
         if (finalSnapshot.timelockShares > 0) {
             uint256 timelockCommissionValue = marketVaultInstance.previewRedeem(finalSnapshot.timelockShares);
-            console2.log("Timelock commission value:", timelockCommissionValue / 1e6);
+            console2.log("Timelock commission value:", timelockCommissionValue / 10 ** usdcInstance.decimals());
         }
 
         // Final Results
-        console2.log("Alice final USDC:", finalSnapshot.aliceUSDC / 1e6);
-        console2.log("Alice profit:", (finalSnapshot.aliceUSDC - INITIAL_DEPOSIT) / 1e6);
-        console2.log("Vault residual USDC:", finalSnapshot.vaultUSDC / 1e6);
-        console2.log("Vault residual totalBase:", finalSnapshot.totalBase / 1e6);
+        console2.log("Alice final USDC:", finalSnapshot.aliceUSDC / 10 ** usdcInstance.decimals());
+        console2.log("Alice profit:", (finalSnapshot.aliceUSDC - INITIAL_DEPOSIT) / 10 ** usdcInstance.decimals());
+        console2.log("Vault residual USDC:", finalSnapshot.vaultUSDC / 10 ** usdcInstance.decimals());
+        console2.log("Vault residual totalBase:", finalSnapshot.totalBase / 10 ** usdcInstance.decimals());
 
         // Assertions
         assertTrue(finalSnapshot.aliceUSDC > INITIAL_DEPOSIT, "Alice should have profited");
@@ -367,13 +373,13 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
     /**
      * @notice Helper function to log balance snapshot
      */
-    function _logBalanceSnapshot(string memory label, BalanceSnapshot memory snapshot) internal pure {
+    function _logBalanceSnapshot(string memory label, BalanceSnapshot memory snapshot) internal view {
         console2.log(string(abi.encodePacked("--- ", label, " STATE ---")));
-        console2.log("Alice USDC:", snapshot.aliceUSDC / 1e6);
-        console2.log("Bob USDC:", snapshot.bobUSDC / 1e6);
-        console2.log("Timelock Shares:", snapshot.timelockShares / 1e6);
-        console2.log("Vault USDC:", snapshot.vaultUSDC / 1e6);
-        console2.log("Total Base:", snapshot.totalBase / 1e6);
+        console2.log("Alice USDC:", snapshot.aliceUSDC / 10 ** usdcInstance.decimals());
+        console2.log("Bob USDC:", snapshot.bobUSDC / 10 ** usdcInstance.decimals());
+        console2.log("Timelock Shares:", snapshot.timelockShares / 10 ** usdcInstance.decimals());
+        console2.log("Vault USDC:", snapshot.vaultUSDC / 10 ** usdcInstance.decimals());
+        console2.log("Total Base:", snapshot.totalBase / 10 ** usdcInstance.decimals());
         console2.log("");
     }
 
@@ -419,28 +425,28 @@ contract LendefiPositionLifecycleTest is Test, BasicDeploy {
         vm.roll(block.number + 1);
         vm.warp(block.timestamp + 1);
 
-        console2.log("Total vault value:", marketVaultInstance.totalBase() / 1e6);
-        console2.log("Alice's shares:", marketVaultInstance.balanceOf(testAlice) / 1e6);
+        console2.log("Total vault value:", marketVaultInstance.totalBase() / 10 ** usdcInstance.decimals());
+        console2.log("Alice's shares:", marketVaultInstance.balanceOf(testAlice) / 10 ** usdcInstance.decimals());
 
         // Alice redeems all her shares
         uint256 aliceShares = marketVaultInstance.balanceOf(testAlice);
         uint256 maxRedeemableShares = marketVaultInstance.maxRedeem(testAlice);
-        console2.log("Max redeemable shares:", maxRedeemableShares / 1e6);
+        console2.log("Max redeemable shares:", maxRedeemableShares / 10 ** usdcInstance.decimals());
 
         // Use the smaller of Alice's balance or max redeemable
         uint256 sharesToRedeem = aliceShares > maxRedeemableShares ? maxRedeemableShares : aliceShares;
 
         // Preview how much USDC Alice will receive
         uint256 expectedUsdc = marketVaultInstance.previewRedeem(sharesToRedeem);
-        console2.log("Alice redeeming shares:", sharesToRedeem / 1e6);
-        console2.log("Expected USDC from redeem:", expectedUsdc / 1e6);
+        console2.log("Alice redeeming shares:", sharesToRedeem / 10 ** usdcInstance.decimals());
+        console2.log("Expected USDC from redeem:", expectedUsdc / 10 ** usdcInstance.decimals());
 
         // Redeem shares
         uint256 receivedUsdc = marketVaultInstance.redeem(sharesToRedeem, testAlice, testAlice);
-        console2.log("Actual USDC received:", receivedUsdc / 1e6);
+        console2.log("Actual USDC received:", receivedUsdc / 10 ** usdcInstance.decimals());
 
         console2.log(
-            "Commission shares minted to timelock:", marketVaultInstance.balanceOf(marketVaultInstance.timelock()) / 1e6
+            "Commission shares minted to timelock:", marketVaultInstance.balanceOf(marketVaultInstance.timelock()) / 10 ** usdcInstance.decimals()
         );
         vm.stopPrank();
     }
