@@ -11,8 +11,8 @@ import "../BasicDeploy.sol";
  * @dev Tests the commission mechanism by depositing liquidity, warping time, and verifying rates
  */
 contract LendefiMarketVaultSupplyRateTest is Test, BasicDeploy {
-    uint256 constant INITIAL_DEPOSIT = 100_000e6; // 100k USDC
-    uint256 constant YIELD_BOOST = 10_000e6; // 10k USDC yield
+    uint256 INITIAL_DEPOSIT; // 100k USDC - set dynamically
+    uint256 YIELD_BOOST; // 10k USDC yield - set dynamically
     uint256 constant ONE_YEAR = 365 days;
     uint256 constant BLOCKS_PER_YEAR = 365 * 24 * 60 * 5; // Assuming 5 blocks per minute
 
@@ -20,6 +20,10 @@ contract LendefiMarketVaultSupplyRateTest is Test, BasicDeploy {
 
     function setUp() public {
         deployMarketsWithUSDC();
+        
+        // Set dynamic amounts
+        INITIAL_DEPOSIT = getUSDCAmount(100_000);
+        YIELD_BOOST = getUSDCAmount(10_000);
 
         // Setup users
         vm.label(testAlice, "Alice");
@@ -84,20 +88,21 @@ contract LendefiMarketVaultSupplyRateTest is Test, BasicDeploy {
         // With the new ERC4626-based getSupplyRate(), we can simply check the math directly
         // 1 share should be worth more than 1 asset due to yield, but less than without commission
 
-        uint256 shareValue = marketVaultInstance.previewRedeem(1e6); // Value of 1 share
-        console2.log("Value of 1 share (1e6):", shareValue);
+        uint256 shareValue = marketVaultInstance.previewRedeem(10 ** usdcInstance.decimals()); // Value of 1 share
+        console2.log("Value of 1 share (1 unit):", shareValue);
 
         // Simple math: if 1 share = 1.09 assets, then supply rate = 9%
-        // Expected: ~1.09e6 (9% yield after 1% commission)
-        uint256 expectedShareValue = 1.09e6; // Approximately
+        // Expected: ~1.09 * 10^decimals (9% yield after 1% commission)
+        uint256 expectedShareValue = (109 * 10 ** usdcInstance.decimals()) / 100; // Approximately
         console2.log("Expected share value (with ~9% net yield):", expectedShareValue);
 
         // Verify that commission is working in the conversion functions
-        uint256 sharesFor1Asset = marketVaultInstance.previewDeposit(1e6);
-        console2.log("Shares for 1 USDC deposit (should be < 1e6 due to commission):", sharesFor1Asset);
+        uint256 sharesFor1Asset = marketVaultInstance.previewDeposit(10 ** usdcInstance.decimals());
+        console2.log("Shares for 1 USDC deposit (should be < 1 unit due to commission):", sharesFor1Asset);
 
         // The new supply rate should reflect the ERC4626 calculation
-        uint256 expectedSupplyRate = shareValue > 1e6 ? ((shareValue - 1e6) * 1e6) / 1e6 : 0;
+        uint256 baseUnit = 10 ** usdcInstance.decimals();
+        uint256 expectedSupplyRate = shareValue > baseUnit ? ((shareValue - baseUnit) * 1e6) / baseUnit : 0;
         console2.log("Expected supply rate from ERC4626:", expectedSupplyRate);
         console2.log("Actual supply rate:", newSupplyRate);
 
@@ -110,7 +115,7 @@ contract LendefiMarketVaultSupplyRateTest is Test, BasicDeploy {
         assertGt(newSupplyRate, initialSupplyRate, "Supply rate should increase after yield boost");
 
         // The conversion rate should reflect commission
-        assertLt(sharesFor1Asset, 1e6, "Shares received should be less than 1:1 due to commission");
+        assertLt(sharesFor1Asset, 10 ** usdcInstance.decimals(), "Shares received should be less than 1:1 due to commission");
     }
 
     /**
@@ -168,7 +173,7 @@ contract LendefiMarketVaultSupplyRateTest is Test, BasicDeploy {
         assertGe(rateAfterSecondDeposit, 0, "Rate should remain non-negative after additional deposits");
 
         // Ensure rates are within reasonable bounds (0-100% APR)
-        assertLt(rateAfterSecondDeposit, 1e6, "Rate should be less than 100%");
+        assertLt(rateAfterSecondDeposit, 1e6, "Rate should be less than 100%"); // This is correct - rate is in 1e6 format
         assertGe(rateAfterSecondDeposit, 0, "Rate should be non-negative");
     }
 
@@ -252,7 +257,7 @@ contract LendefiMarketVaultSupplyRateTest is Test, BasicDeploy {
      * @dev Ensures rate calculation doesn't break with minimal amounts
      */
     function test_GetSupplyRate_EdgeCaseSmallAmounts() public {
-        uint256 smallDeposit = 1e6; // 1 USDC
+        uint256 smallDeposit = getUSDCAmount(1); // 1 USDC
         uint256 smallYield = 1e5; // 0.1 USDC
 
         // Give testAlice smaller amount
@@ -281,7 +286,7 @@ contract LendefiMarketVaultSupplyRateTest is Test, BasicDeploy {
         console2.log("Supply rate with small amounts:", supplyRate);
 
         // Rate should be reasonable (not overflow or underflow)
-        assertLt(supplyRate, 10e6, "Rate should not be absurdly high");
+        assertLt(supplyRate, 10e6, "Rate should not be absurdly high"); // This is correct - rate is in 1e6 format
         assertGe(supplyRate, 0, "Rate should be non-negative");
     }
 }
