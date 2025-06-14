@@ -10,13 +10,17 @@ import "../BasicDeploy.sol";
  * @notice Simple lifecycle test to verify setup and basic functionality
  */
 contract SimpleLifecycleTest is Test, BasicDeploy {
-    uint256 constant INITIAL_DEPOSIT = 100_000e6; // 100k USDC
-    uint256 constant YIELD_BOOST = 10_000e6; // 10k USDC yield
+    uint256 INITIAL_DEPOSIT; // 100k USDC - set dynamically
+    uint256 YIELD_BOOST; // 10k USDC yield - set dynamically
 
     address testAlice = address(0xA11CE); // Liquidity provider
 
     function setUp() public {
         deployMarketsWithUSDC();
+        
+        // Set dynamic amounts
+        INITIAL_DEPOSIT = getUSDCAmount(100_000);
+        YIELD_BOOST = getUSDCAmount(10_000);
 
         // Setup users
         vm.label(testAlice, "Alice");
