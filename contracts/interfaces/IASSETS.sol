@@ -313,6 +313,18 @@ interface IASSETS {
     error OracleInvalidPriceVolatility(address oracle, int256 price, uint256 changePercent);
 
     /**
+     * @notice Error thrown when L2 sequencer is down
+     */
+    error SequencerDown();
+
+    /**
+     * @notice Error thrown when L2 sequencer grace period has not passed
+     * @param timeSinceUp Time since sequencer came back up
+     * @param gracePeriod Required grace period
+     */
+    error GracePeriodNotOver(uint256 timeSinceUp, uint256 gracePeriod);
+
+    /**
      * @notice Error thrown when a Uniswap oracle is improperly configured
      * @param asset Address of the affected asset
      */
@@ -368,8 +380,9 @@ interface IASSETS {
      * @param timelock Address with manager role
      * @param multisig Address with admin roles
      * @param porFeed Proof of Reserve feed address
+     * @param coreAddress Address of the core protocol contract
      */
-    function initialize(address timelock, address multisig, address porFeed) external;
+    function initialize(address timelock, address multisig, address porFeed, address coreAddress) external;
 
     /**
      * @notice Register a Uniswap V3 pool as an oracle for an asset
@@ -406,11 +419,6 @@ interface IASSETS {
      */
     function updateTierConfig(CollateralTier tier, uint256 jumpRate, uint256 liquidationFee) external;
 
-    /**
-     * @notice Set the core protocol address
-     * @param newCore The new core protocol address
-     */
-    function setCoreAddress(address newCore) external;
 
     /**
      * @notice Pause the contract
@@ -474,19 +482,6 @@ interface IASSETS {
      * @return The time remaining in seconds
      */
     function upgradeTimelockRemaining() external view returns (uint256);
-
-    /**
-     * @notice Get comprehensive details about an asset
-     * @param asset The asset address
-     * @return price Current asset price
-     * @return totalSupplied Total amount supplied to the protocol
-     * @return maxSupply Maximum supply threshold
-     * @return tier Collateral tier of the asset
-     */
-    function getAssetDetails(address asset)
-        external
-        view
-        returns (uint256 price, uint256 totalSupplied, uint256 maxSupply, CollateralTier tier);
 
     /**
      * @notice Get rates for all tiers
@@ -637,7 +632,7 @@ interface IASSETS {
     function getPoRFeed(address asset) external view returns (address);
 
     /**
-     * @notice Gets the total value of a specific asset in USD terms
+     * @notice Updates the asset's Proof of Reserve feed and returns USD value
      * @param asset The address of the asset
      * @param amount The amount of the asset
      * @return usdValue The total value of the asset in USD terms
