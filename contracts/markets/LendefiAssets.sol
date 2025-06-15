@@ -1076,8 +1076,9 @@ contract LendefiAssets is
 
         // On Base mainnet, ensure pool contains USDC or WETH for pricing
         if (block.chainid == LendefiConstants.BASE_CHAIN_ID) {
-            address otherToken = asset == token0 ? token1 : token0;
-            if (otherToken != LendefiConstants.BASE_USDC && otherToken != LendefiConstants.BASE_WETH) {
+            bool hasValidPairing = (token0 == LendefiConstants.BASE_USDC || token0 == LendefiConstants.BASE_WETH) ||
+                                  (token1 == LendefiConstants.BASE_USDC || token1 == LendefiConstants.BASE_WETH);
+            if (!hasValidPairing) {
                 revert InvalidParameter("pool", uint256(uint160(uniswapPool)));
             }
         }
