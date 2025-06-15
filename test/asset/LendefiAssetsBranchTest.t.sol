@@ -34,7 +34,7 @@ contract LendefiAssetsBranchTest is BasicDeploy {
         LendefiPoRFeed porFeedImpl = new LendefiPoRFeed();
         bytes memory initData = abi.encodeCall(
             LendefiAssets.initialize,
-            (address(timelockInstance), charlie, address(porFeedImpl))
+            (address(timelockInstance), charlie, address(porFeedImpl), ethereum)
         );
         address payable assetsProxy = payable(Upgrades.deployUUPSProxy("LendefiAssets.sol", initData));
         assetsProxyForUpgrades = LendefiAssets(assetsProxy);
@@ -293,7 +293,7 @@ contract LendefiAssetsBranchTest is BasicDeploy {
 
     function test_4_4_ChainlinkOracleTimeout() public {
         // Set oracle to return old price
-        uint256 oldTimestamp = block.timestamp - 10 hours; // Assuming freshnessThreshold is 8 hours
+        uint256 oldTimestamp = block.timestamp - 25 hours; // Freshness threshold is 24 hours for Base L2
         mockChainlinkOracle.setTimestamp(oldTimestamp);
 
         vm.expectRevert(
@@ -302,7 +302,7 @@ contract LendefiAssetsBranchTest is BasicDeploy {
                 address(mockChainlinkOracle),
                 oldTimestamp,
                 block.timestamp,
-                28800 // 8 hours default freshness
+                86400 // 24 hours default freshness for Base L2
             )
         );
         assetsInstance.getAssetPriceByType(address(wethInstance), IASSETS.OracleType.CHAINLINK);
@@ -379,7 +379,6 @@ contract LendefiAssetsBranchTest is BasicDeploy {
 
     function test_5_1_IsAssetAtCapacity() public {
         vm.startPrank(address(timelockInstance));
-        assetsInstance.setCoreAddress(address(marketCoreInstance));
 
         // Mock marketCoreInstance.getAssetTVL call
         vm.mockCall(
