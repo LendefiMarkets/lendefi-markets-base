@@ -184,36 +184,7 @@ contract LendefiAssetsTest is BasicDeploy {
         vm.stopPrank();
     }
 
-    function test_GetAssetDetails_Basic() public {
-        // Reset the price to ensure it's properly set
-        wethOracle.setPrice(int256(ETH_PRICE));
-
-        // Now get the asset details
-        (uint256 price, uint256 totalSupplied, uint256 maxSupply, IASSETS.CollateralTier tier) =
-            assetsInstance.getAssetDetails(address(wethInstance));
-
-        // Log values for debugging
-        console2.log("WETH Price:", price);
-        console2.log("WETH Total Supplied:", totalSupplied);
-        console2.log("WETH Max Supply:", maxSupply);
-        console2.log("WETH Tier:", uint256(tier));
-
-        // Verify returned values
-        assertEq(price, ETH_PRICE / 1e2, "WETH price should match oracle price");
-        assertEq(totalSupplied, 0, "WETH total supplied should be 0");
-        assertEq(maxSupply, 1_000_000 ether, "WETH max supply incorrect");
-
-        // Rest of the function remains the same
-        uint256 expectedBorrowRate = marketCoreInstance.getBorrowRate(IASSETS.CollateralTier.CROSS_A);
-        uint256 expectedLiquidationFee = assetsInstance.getLiquidationFee(IASSETS.CollateralTier.CROSS_A);
-
-        uint256 borrowRate = marketCoreInstance.getBorrowRate(tier);
-        uint256 liquidationFee = assetsInstance.getLiquidationFee(tier);
-
-        assertEq(borrowRate, expectedBorrowRate, "WETH borrow rate should match expected rate");
-        assertEq(liquidationFee, expectedLiquidationFee, "WETH liquidation fee should match expected fee");
-        assertEq(uint256(tier), uint256(IASSETS.CollateralTier.CROSS_A), "WETH tier should be CROSS_A");
-    }
+    // test_GetAssetDetails_Basic removed - getAssetDetails function no longer exists
 
     function test_UpdateAssetConfig() public {
         IASSETS.Asset memory asset = assetsInstance.getAssetInfo(address(wethInstance));
@@ -475,10 +446,7 @@ contract LendefiAssetsTest is BasicDeploy {
         assetsInstance.getAssetInfo(address(0xDEAD));
     }
 
-    function testRevert_AssetNotListed_GetAssetDetails() public {
-        vm.expectRevert(abi.encodeWithSelector(IASSETS.AssetNotListed.selector, address(0xDEAD)));
-        assetsInstance.getAssetDetails(address(0xDEAD));
-    }
+    // testRevert_AssetNotListed_GetAssetDetails removed - getAssetDetails function no longer exists
 
     function test_CollateralTierParameters() public {
         // Test for all tiers
@@ -645,7 +613,7 @@ contract LendefiAssetsTest is BasicDeploy {
         LendefiPoRFeed porFeedImpl = new LendefiPoRFeed();
         bytes memory initData = abi.encodeCall(
             LendefiAssets.initialize,
-            (address(timelockInstance), charlie, address(porFeedImpl))
+            (address(timelockInstance), charlie, address(porFeedImpl), ethereum)
         );
         address payable assetsProxy = payable(Upgrades.deployUUPSProxy("LendefiAssets.sol", initData));
         LendefiAssets assetsProxyInstance = LendefiAssets(assetsProxy);
@@ -767,8 +735,7 @@ contract LendefiAssetsTest is BasicDeploy {
     // For testRevert_SetCoreAddress_ZeroAddress()
     function testRevert_SetCoreAddress_ZeroAddress() public {
         vm.prank(gnosisSafe);
-        vm.expectRevert(abi.encodeWithSignature("ZeroAddressNotAllowed()"));
-        assetsInstance.setCoreAddress(address(0));
+        // setCoreAddress method no longer exists - core address is set during initialization
     }
 
     function test_UnpauseAssets() public {
@@ -858,20 +825,7 @@ contract LendefiAssetsTest is BasicDeploy {
         );
     }
 
-    // Fix for test_SetCoreAddress - match the event correctly
-    function test_SetCoreAddress() public {
-        address newCore = address(0xB);
-
-        // The CoreAddressUpdated event has only one indexed parameter and no non-indexed parameters
-        // So we should use vm.expectEmit(true, false, false, false)
-
-        vm.prank(address(timelockInstance));
-        vm.expectEmit(true, false, false, false);
-        emit IASSETS.CoreAddressUpdated(newCore);
-        assetsInstance.setCoreAddress(newCore);
-
-        assertEq(assetsInstance.coreAddress(), newCore);
-    }
+    // test_SetCoreAddress removed - setCoreAddress method no longer exists
 
     function test_InitializeSuccess() public {
         address timelockAddr = address(timelockInstance);
@@ -879,7 +833,7 @@ contract LendefiAssetsTest is BasicDeploy {
         // Create initialization data
         LendefiPoRFeed porFeedImpl = new LendefiPoRFeed();
         bytes memory initData = abi.encodeCall(
-            LendefiAssets.initialize, (timelockAddr, charlie, address(porFeedImpl))
+            LendefiAssets.initialize, (timelockAddr, charlie, address(porFeedImpl), ethereum)
         );
         // Deploy LendefiAssets with initialization
         address payable proxy = payable(Upgrades.deployUUPSProxy("LendefiAssets.sol", initData));
