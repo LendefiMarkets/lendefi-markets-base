@@ -30,7 +30,7 @@ contract AssetsInitializeTest is BasicDeploy {
         // Create initialization data
         LendefiPoRFeed porFeedImpl = new LendefiPoRFeed();
         initData = abi.encodeCall(
-            LendefiAssets.initialize, (timelockAddr, charlie, address(porFeedImpl))
+            LendefiAssets.initialize, (timelockAddr, charlie, address(porFeedImpl), ethereum)
         );
     }
 
@@ -81,11 +81,11 @@ contract AssetsInitializeTest is BasicDeploy {
 
         // Test with zero address for timelock
         vm.expectRevert(abi.encodeWithSignature("ZeroAddressNotAllowed()"));
-        assetsModule.initialize(address(0), gnosisSafe, address(porFeedImpl));
+        assetsModule.initialize(address(0), gnosisSafe, address(porFeedImpl), ethereum);
 
         // Test with zero address for market owner
         vm.expectRevert(abi.encodeWithSignature("ZeroAddressNotAllowed()"));
-        assetsModule.initialize(timelockAddr, address(0), address(porFeedImpl));
+        assetsModule.initialize(timelockAddr, address(0), address(porFeedImpl), ethereum);
     }
 
     function test_PreventReinitialization() public {
@@ -96,7 +96,7 @@ contract AssetsInitializeTest is BasicDeploy {
         // Try to initialize again
         LendefiPoRFeed porFeedImpl = new LendefiPoRFeed();
         vm.expectRevert(abi.encodeWithSignature("InvalidInitialization()"));
-        assetsContract.initialize(timelockAddr, charlie, address(porFeedImpl));
+        assetsContract.initialize(timelockAddr, charlie, address(porFeedImpl), ethereum);
     }
 
     function test_RoleExclusivity() public {
@@ -188,8 +188,8 @@ contract AssetsInitializeTest is BasicDeploy {
             uint40 circuitBreakerThreshold
         ) = assetsContract.mainOracleConfig();
 
-        // Verify default values
-        assertEq(freshnessThreshold, 28800, "Freshness threshold should be 28800 (8 hours)");
+        // Verify default values for Base L2 (24+ hour oracle updates)
+        assertEq(freshnessThreshold, 86400, "Freshness threshold should be 86400 (24 hours) for Base L2");
         assertEq(volatilityThreshold, 3600, "Volatility threshold should be 3600 (1 hour)");
         assertEq(volatilityPercentage, 20, "Volatility percentage should be 20%");
         assertEq(circuitBreakerThreshold, 50, "Circuit breaker threshold should be 50%");
