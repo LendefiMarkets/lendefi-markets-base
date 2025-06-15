@@ -1,23 +1,5 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
-/**
- * ═══════════[ Composable Lending Markets ]═══════════
- *
- * ██╗     ███████╗███╗   ██╗██████╗ ███████╗███████╗██╗
- * ██║     ██╔════╝████╗  ██║██╔══██╗██╔════╝██╔════╝██║
- * ██║     █████╗  ██╔██╗ ██║██║  ██║█████╗  █████╗  ██║
- * ██║     ██╔══╝  ██║╚██╗██║██║  ██║██╔══╝  ██╔══╝  ██║
- * ███████╗███████╗██║ ╚████║██████╔╝███████╗██║     ██║
- * ╚══════╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝     ╚═╝
- *
- * ═══════════[ Composable Lending Markets ]═══════════
- * @title LendefiAssets
- * @author alexei@lendefimarkets(dot)com
- * @notice Manages asset configurations, listings, and oracle integrations
- * @dev Extracted component for asset-related functionality
- * @custom:security-contact security@lendefimarkets.com
- * @custom:copyright Copyright (c) 2025 Nebula Holding Inc. All rights reserved.
- */
 
 import {IASSETS} from "../interfaces/IASSETS.sol";
 import {IPROTOCOL} from "../interfaces/IProtocol.sol";
@@ -50,6 +32,8 @@ contract LendefiAssets is
     using LendefiConstants for *;
     using UniswapTickMath for int24;
     using EnumerableSet for EnumerableSet.AddressSet;
+
+    // ==================== CONSTANTS ====================
 
     // ==================== STATE VARIABLES ====================
 
@@ -130,6 +114,7 @@ contract LendefiAssets is
      * @param timelock_ Address of the timelock_ contract that will have admin privileges
      * @param marketOwner Address of the market owner who will have management privileges
      * @param porFeed_ Proof of Reserve feed address
+     * @param coreAddress_ Address of the core protocol contract
      * @custom:security Sets up the initial access control roles:
      * - DEFAULT_ADMIN_ROLE: timelock_
      * - MANAGER_ROLE: timelock_, marketOwner
@@ -142,8 +127,13 @@ contract LendefiAssets is
      * - circuitBreakerThreshold: 50%
      * @custom:version Sets initial contract version to 1
      */
-    function initialize(address timelock_, address marketOwner, address porFeed_) external initializer {
-        if (timelock_ == address(0) || marketOwner == address(0) || porFeed_ == address(0)) {
+    function initialize(address timelock_, address marketOwner, address porFeed_, address coreAddress_)
+        external
+        initializer
+    {
+        if (
+            timelock_ == address(0) || marketOwner == address(0) || porFeed_ == address(0) || coreAddress_ == address(0)
+        ) {
             revert ZeroAddressNotAllowed();
         }
 
@@ -158,10 +148,11 @@ contract LendefiAssets is
         _grantRole(LendefiConstants.UPGRADER_ROLE, timelock_);
         _grantRole(LendefiConstants.PAUSER_ROLE, marketOwner);
         _grantRole(LendefiConstants.PAUSER_ROLE, timelock_);
+        _grantRole(LendefiConstants.PROTOCOL_ROLE, coreAddress_);
 
-        // Initialize oracle config
+        // Initialize oracle config for Base L2 (24+ hour oracle updates)
         mainOracleConfig = MainOracleConfig({
-            freshnessThreshold: 28800, // 8 hours
+            freshnessThreshold: 86400, // 24 hours for Base L2
             volatilityThreshold: 3600, // 1 hour
             volatilityPercentage: 20, // 20%
             circuitBreakerThreshold: 50 // 50%
@@ -170,6 +161,8 @@ contract LendefiAssets is
         _initializeDefaultTierParameters();
 
         porFeed = porFeed_;
+        coreAddress = coreAddress_;
+        lendefiInstance = IPROTOCOL(coreAddress_);
 
         timelock = timelock_;
         version = 1;
@@ -268,25 +261,6 @@ contract LendefiAssets is
     }
 
     // ==================== CORE FUNCTIONS ====================
-
-    /**
-     * @notice Updates the core protocol contract address
-     * @dev This function can only be called by the DEFAULT_ADMIN_ROLE when the contract is not paused
-     * @param newCore Address of the new core protocol contract
-     * @custom:security Validates that the new address is not zero
-     * @custom:access Restricted to DEFAULT_ADMIN_ROLE
-     * @custom:emits CoreAddressUpdated event with the new core address
-     */
-    function setCoreAddress(address newCore)
-        external
-        nonZeroAddress(newCore)
-        onlyRole(DEFAULT_ADMIN_ROLE)
-        whenNotPaused
-    {
-        coreAddress = newCore;
-        lendefiInstance = IPROTOCOL(newCore);
-        emit CoreAddressUpdated(newCore);
-    }
 
     /**
      * @notice Pauses all contract operations
@@ -472,24 +446,25 @@ contract LendefiAssets is
     }
 
     /**
-     * @notice Gets the price from the Chainlink oracle
+     * @notice Updates the asset's Proof of Reserve feed and returns USD value
      * @param asset The asset to get price for
-     * @param tvl The total value locked for the asset
-     * @return usdValue The price in USD (scaled by 1e8)
+     * @param amount The amount of the asset
+     * @return usdValue The price in USD (scaled by 1e6)
      */
-    function updateAssetPoRFeed(address asset, uint256 tvl)
+    function updateAssetPoRFeed(address asset, uint256 amount)
         external
         onlyListedAsset(asset)
+        onlyRole(LendefiConstants.PROTOCOL_ROLE)
         returns (uint256 usdValue)
     {
         // Get PoR feed
         address feedAddr = assetInfo[asset].porFeed;
         // Update the reserves on the feed
-        IPoRFeed(feedAddr).updateReserves(tvl);
+        IPoRFeed(feedAddr).updateReserves(amount);
         // Calculate USD value
         uint8 assetDecimals = assetInfo[asset].decimals;
         uint256 dynamicWAD = 10 ** assetDecimals;
-        usdValue = (tvl * getAssetPrice(asset)) / dynamicWAD;
+        usdValue = (amount * getAssetPrice(asset)) / dynamicWAD;
     }
 
     /**
@@ -539,33 +514,6 @@ contract LendefiAssets is
             && block.timestamp < pendingUpgrade.scheduledTime + LendefiConstants.UPGRADE_TIMELOCK_DURATION
             ? pendingUpgrade.scheduledTime + LendefiConstants.UPGRADE_TIMELOCK_DURATION - block.timestamp
             : 0;
-    }
-
-    /**
-     * @notice Retrieves detailed information about an asset
-     * @dev Combines multiple data points into a single view call
-     * @param asset The address of the asset to query
-     * @return price Current oracle price of the asset
-     * @return tvl Total value locked for the asset
-     * @return maxSupply Maximum supply threshold for the asset
-     * @return tier Collateral tier classification
-     * @custom:validation Asset must be listed
-     */
-    function getAssetDetails(address asset)
-        external
-        view
-        onlyListedAsset(asset)
-        returns (uint256 price, uint256 tvl, uint256 maxSupply, CollateralTier tier)
-    {
-        // Direct storage access instead of copying entire struct
-        maxSupply = assetInfo[asset].maxSupplyThreshold;
-        tier = assetInfo[asset].tier;
-
-        // Get price (this will revert if circuit breaker is active)
-        price = getAssetPrice(asset);
-
-        // Get total supplied from protocol
-        (tvl,,) = lendefiInstance.getAssetTVL(asset);
     }
 
     /**
@@ -936,38 +884,38 @@ contract LendefiAssets is
     }
 
     /**
-     * @notice Get price from Chainlink oracle with volatility checks
+     * @notice Get price from Chainlink oracle with volatility checks and L2 sequencer validation
      * @param asset The asset address
      * @return The price with normalized decimals (1e6)
      */
     function _getChainlinkPrice(address asset) internal view returns (uint256) {
+        if (block.chainid == LendefiConstants.BASE_CHAIN_ID) {
+            (, int256 answer, uint256 startedAt,,) =
+                AggregatorV3Interface(LendefiConstants.SEQUENCER_FEED).latestRoundData();
+            if (answer != 0) revert SequencerDown();
+            if (block.timestamp - startedAt <= LendefiConstants.GRACE_PERIOD) {
+                revert GracePeriodNotOver(block.timestamp - startedAt, LendefiConstants.GRACE_PERIOD);
+            }
+        }
+
         address oracle = assetInfo[asset].chainlinkConfig.oracleUSD;
         (uint80 roundId, int256 price,, uint256 timestamp, uint80 answeredInRound) =
             AggregatorV3Interface(oracle).latestRoundData();
 
-        // Validate price is positive
-        if (price <= 0) {
-            revert OracleInvalidPrice(oracle, price);
-        }
+        if (price <= 0) revert OracleInvalidPrice(oracle, price);
+        if (answeredInRound < roundId) revert OracleStalePrice(oracle, roundId, answeredInRound);
 
-        // Validate round data is not stale
-        if (answeredInRound < roundId) {
-            revert OracleStalePrice(oracle, roundId, answeredInRound);
-        }
-
-        // Validate timestamp is fresh enough
         uint256 age = block.timestamp - timestamp;
         if (age > mainOracleConfig.freshnessThreshold) {
             revert OracleTimeout(oracle, timestamp, block.timestamp, mainOracleConfig.freshnessThreshold);
         }
 
-        // Check for excessive volatility using the new helper function
         uint256 changePercent = _getChainlinkVolatility(asset);
         if (changePercent >= mainOracleConfig.volatilityPercentage && age >= mainOracleConfig.volatilityThreshold) {
             revert OracleInvalidPriceVolatility(oracle, price, changePercent);
         }
 
-        return uint256(price) / 1e2; // Normalize to 1e6 to match Uniswap
+        return uint256(price) / 1e2;
     }
 
     /**
@@ -1048,8 +996,10 @@ contract LendefiAssets is
             uint256 rawPrice = UniswapTickMath.getRawPrice(pool, isToken0, 10 ** assetDecimals, twapPeriod);
 
             IUniswapV3Pool ethUSDCPool = IUniswapV3Pool(ethUsdcPool);
-            // ETH is token1 in USDC/ETH pool
-            uint256 ethPriceInUSD = UniswapTickMath.getRawPrice(ethUSDCPool, false, 1e18, twapPeriod);
+            // Dynamically determine WETH position in ETH/USDC pool
+            address token0 = ethUSDCPool.token0();
+            bool wethIsToken0 = (IERC20Metadata(token0).decimals() == 18);
+            uint256 ethPriceInUSD = UniswapTickMath.getRawPrice(ethUSDCPool, wethIsToken0, 1e18, twapPeriod);
 
             // Adjust token/ETH price to account for token decimals
             uint256 adjustedPrice = rawPrice / (10 ** (18 - assetDecimals)); // Scale to 1e6 precision
@@ -1124,8 +1074,16 @@ contract LendefiAssets is
             revert AssetNotInUniswapPool(asset, uniswapPool);
         }
 
+        // On Base mainnet, ensure pool contains USDC or WETH for pricing
+        if (block.chainid == LendefiConstants.BASE_CHAIN_ID) {
+            address otherToken = asset == token0 ? token1 : token0;
+            if (otherToken != LendefiConstants.BASE_USDC && otherToken != LendefiConstants.BASE_WETH) {
+                revert InvalidParameter("pool", uint256(uint160(uniswapPool)));
+            }
+        }
+
         // Validate TWAP period (between 15 minutes and 30 minutes)
-        if (twapPeriod < 900 || twapPeriod > 1800) {
+        if (twapPeriod < 120 || twapPeriod > 1800) {
             revert InvalidThreshold("twapPeriod", twapPeriod, 900, 1800);
         }
 
