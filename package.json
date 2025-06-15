@@ -26,6 +26,7 @@
     "solhint": "./node_modules/.bin/solhint -f table contracts/**/*.sol",
     "test": "forge clean && forge build && forge test -vvv --ffi",
     "test:unit": "forge test --match-contract BasicDeployTest -vvv --ffi",
+    "test:fork":"forge test --match-path 'test/fork-tests/*' -vv --ffi",
     "test:unit:deep": "FOUNDRY_FUZZ_RUNS=5000 npm run test:unit",
     "unit:lcov": "forge coverage --match-path 'test/lender/LendefiBasicTest.t.sol' --report lcov --ffi"
   },
