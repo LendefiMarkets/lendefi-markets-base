@@ -135,8 +135,13 @@ contract LendefiAssetsV2 is
      * - circuitBreakerThreshold: 50%
      * @custom:version Sets initial contract version to 1
      */
-    function initialize(address timelock_, address marketOwner, address porFeed_, address coreAddress_) external initializer {
-        if (timelock_ == address(0) || marketOwner == address(0) || porFeed_ == address(0) || coreAddress_ == address(0)) {
+    function initialize(address timelock_, address marketOwner, address porFeed_, address coreAddress_)
+        external
+        initializer
+    {
+        if (
+            timelock_ == address(0) || marketOwner == address(0) || porFeed_ == address(0) || coreAddress_ == address(0)
+        ) {
             revert ZeroAddressNotAllowed();
         }
 
@@ -151,6 +156,7 @@ contract LendefiAssetsV2 is
         _grantRole(LendefiConstants.UPGRADER_ROLE, timelock_);
         _grantRole(LendefiConstants.PAUSER_ROLE, marketOwner);
         _grantRole(LendefiConstants.PAUSER_ROLE, timelock_);
+        _grantRole(LendefiConstants.PROTOCOL_ROLE, coreAddress_);
 
         // Initialize oracle config for Base L2 (24+ hour oracle updates)
         mainOracleConfig = MainOracleConfig({
@@ -165,7 +171,6 @@ contract LendefiAssetsV2 is
         porFeed = porFeed_;
         coreAddress = coreAddress_;
         lendefiInstance = IPROTOCOL(coreAddress_);
-        _grantRole(LendefiConstants.PROTOCOL_ROLE, coreAddress_);
 
         timelock = timelock_;
         version = 1;
@@ -264,7 +269,6 @@ contract LendefiAssetsV2 is
     }
 
     // ==================== CORE FUNCTIONS ====================
-
 
     /**
      * @notice Pauses all contract operations
@@ -1080,8 +1084,9 @@ contract LendefiAssetsV2 is
 
         // On Base mainnet, ensure pool contains USDC or WETH for pricing
         if (block.chainid == LendefiConstants.BASE_CHAIN_ID) {
-            address otherToken = asset == token0 ? token1 : token0;
-            if (otherToken != LendefiConstants.BASE_USDC && otherToken != LendefiConstants.BASE_WETH) {
+            bool hasValidPairing = (token0 == LendefiConstants.BASE_USDC || token0 == LendefiConstants.BASE_WETH)
+                || (token1 == LendefiConstants.BASE_USDC || token1 == LendefiConstants.BASE_WETH);
+            if (!hasValidPairing) {
                 revert InvalidParameter("pool", uint256(uint160(uniswapPool)));
             }
         }
