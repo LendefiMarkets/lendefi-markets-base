@@ -74,13 +74,13 @@ contract USDTForkTest is BasicDeploy {
         console2.log("About to configure WETH...");
         _configureWETH();
         console2.log("WETH configured successfully");
-        
+
         console2.log("CBBTC address:", CBBTC);
         console2.log("CBBTC_USDC_POOL address:", CBBTC_USDC_POOL);
         console2.log("About to configure CBBTC...");
         _configureCBBTC();
         console2.log("CBBTC configured successfully");
-        
+
         console2.log("USDT_BASE address:", USDT_BASE);
         console2.log("USDC_USDT_POOL address:", USDC_USDT_POOL);
         console2.log("About to configure USDT...");
