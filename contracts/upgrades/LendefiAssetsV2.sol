@@ -1,10 +1,20 @@
 // SPDX-License-Identifier: BUSL-1.1
 pragma solidity 0.8.23;
 /**
- * @title LendefiAssetsV2 (for testing upgrades)
+ * ═══════════[ Composable Lending Markets ]═══════════
+ *
+ * ██╗     ███████╗███╗   ██╗██████╗ ███████╗███████╗██╗
+ * ██║     ██╔════╝████╗  ██║██╔══██╗██╔════╝██╔════╝██║
+ * ██║     █████╗  ██╔██╗ ██║██║  ██║█████╗  █████╗  ██║
+ * ██║     ██╔══╝  ██║╚██╗██║██║  ██║██╔══╝  ██╔══╝  ██║
+ * ███████╗███████╗██║ ╚████║██████╔╝███████╗██║     ██║
+ * ╚══════╝╚══════╝╚═╝  ╚═══╝╚═════╝ ╚══════╝╚═╝     ╚═╝
+ *
+ * ═══════════[ Composable Lending Markets ]═══════════
+ * @title LendefiAssetsV2 (for upgrade Testing)
  * @author alexei@lendefimarkets(dot)com
  * @notice Manages asset configurations, listings, and oracle integrations
- * @dev Extracted component for asset-related functionality
+ * @dev Asset pricing functionality via Chainlink oracles and Uniswap TWAP
  * @custom:security-contact security@lendefimarkets.com
  * @custom:copyright Copyright (c) 2025 Nebula Holding Inc. All rights reserved.
  */
@@ -48,20 +58,18 @@ contract LendefiAssetsV2 is
     /// @notice Current version of the contract implementation
     /// @dev Incremented on each upgrade
     uint8 public version;
-
     /// @notice Address of the core protocol contract
-    /// @dev Used for cross-contract calls and validation
     address public coreAddress;
     /// @notice Address of the Proof of Reserve factory
     address public porFeed;
     /// @notice Address of the timelock contract
     address public timelock;
-
-    /// @notice Network-specific addresses for oracle validation
-    /// @dev Set during initialization to support different networks
+    /// @notice Network-specific USDC address
     address public networkUSDC;
+    /// @notice Network-specific WETH address
     address public networkWETH;
-    address public UsdcWethPool;
+    /// @notice Uniswap pool address for USDC/WETH
+    address public usdcWethPool;
 
     /// @notice Information about the currently pending upgrade request
     /// @dev Stores implementation address and scheduling details
@@ -131,7 +139,7 @@ contract LendefiAssetsV2 is
      * @param coreAddress_ Address of the core protocol contract
      * @param networkUSDC_ Network-specific USDC address for oracle validation
      * @param networkWETH_ Network-specific WETH address for oracle validation
-     * @param UsdcWethPool_ Network-specific USDC/WETH pool for price reference
+     * @param usdcWethPool_ Network-specific USDC/WETH pool for price reference
      * @custom:security Sets up the initial access control roles:
      * - DEFAULT_ADMIN_ROLE: timelock_
      * - MANAGER_ROLE: timelock_, marketOwner
@@ -151,11 +159,11 @@ contract LendefiAssetsV2 is
         address coreAddress_,
         address networkUSDC_,
         address networkWETH_,
-        address UsdcWethPool_
+        address usdcWethPool_
     ) external initializer {
         if (
             timelock_ == address(0) || marketOwner == address(0) || porFeed_ == address(0) || coreAddress_ == address(0)
-                || networkUSDC_ == address(0) || networkWETH_ == address(0) || UsdcWethPool_ == address(0)
+                || networkUSDC_ == address(0) || networkWETH_ == address(0) || usdcWethPool_ == address(0)
         ) {
             revert ZeroAddressNotAllowed();
         }
@@ -190,7 +198,7 @@ contract LendefiAssetsV2 is
         // Set network-specific addresses
         networkUSDC = networkUSDC_;
         networkWETH = networkWETH_;
-        UsdcWethPool = UsdcWethPool_;
+        usdcWethPool = usdcWethPool_;
 
         timelock = timelock_;
         version = 1;
@@ -593,11 +601,7 @@ contract LendefiAssetsV2 is
         returns (bool)
     {
         // Check standard supply cap
-        if (tvl + amount > assetInfo[asset].maxSupplyThreshold) {
-            return true;
-        }
-
-        return false;
+        return (tvl + amount > assetInfo[asset].maxSupplyThreshold);
     }
 
     /**
@@ -605,9 +609,9 @@ contract LendefiAssetsV2 is
      * @dev Only applicable for assets with active Uniswap oracle
      * @param asset The asset address to check
      * @param amount The amount to validate
-     * @return limitReached true if amount exceeds 3% of pool liquidity
+     * @return true if amount exceeds 3% of pool liquidity
      */
-    function poolLiquidityLimit(address asset, uint256 amount) external view returns (bool limitReached) {
+    function poolLiquidityLimit(address asset, uint256 amount) external view returns (bool) {
         // Check pool liquidity cap if Uniswap oracle is active
         if (assetInfo[asset].poolConfig.active == 1) {
             address pool = assetInfo[asset].poolConfig.pool;
@@ -615,10 +619,8 @@ contract LendefiAssetsV2 is
             // Get the actual token balance in the pool
             uint256 assetBalance = IERC20(asset).balanceOf(pool);
 
-            // If amount is more than 3% of the available assets in pool, revert
-            if (amount > (assetBalance * 3) / 100) {
-                return true;
-            }
+            // If amount is more than 3% of the available assets in pool
+            return (amount > (assetBalance * 3) / 100);
         }
 
         return false;
@@ -788,9 +790,8 @@ contract LendefiAssetsV2 is
         }
 
         // Load into memory once
-        Asset storage info = assetInfo[asset];
-        uint8 chainlinkActive = info.chainlinkConfig.active;
-        uint8 uniswapActive = info.poolConfig.active;
+        uint8 chainlinkActive = assetInfo[asset].chainlinkConfig.active;
+        uint8 uniswapActive = assetInfo[asset].poolConfig.active;
 
         // Early returns for single oracle
         if (chainlinkActive == 1 && uniswapActive == 0) {
@@ -803,9 +804,7 @@ contract LendefiAssetsV2 is
         // Dual-oracle case (implicitly totalActive == 2)
         uint256 price1 = _getChainlinkPrice(asset);
         uint256 price2 = _getUniswapTWAPPrice(asset);
-        uint256 median = (price1 + price2) >> 1; // Bit shift instead of division
-
-        return median;
+        return (price1 + price2) >> 1; // Bit shift instead of division
     }
 
     /**
@@ -959,7 +958,7 @@ contract LendefiAssetsV2 is
             revert InvalidUniswapConfig(asset);
         }
 
-        tokenPriceInUSD = getAnyPoolTokenPriceInUSD(config.pool, asset, UsdcWethPool, config.twapPeriod); // Price on 1e6 scale, USDC
+        tokenPriceInUSD = getAnyPoolTokenPriceInUSD(config.pool, asset, usdcWethPool, config.twapPeriod); // Price on 1e6 scale, USDC
 
         if (tokenPriceInUSD <= 0) {
             revert OracleInvalidPrice(config.pool, int256(tokenPriceInUSD));
