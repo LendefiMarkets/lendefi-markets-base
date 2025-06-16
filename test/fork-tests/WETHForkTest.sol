@@ -258,7 +258,7 @@ contract WETHForkTest is BasicDeploy {
         console2.log("CBBTC Uniswap price:", uniswapPrice);
         console2.log("CBBTC Chainlink price in USD:", chainlinkPrice / 1e6);
         console2.log("CBBTC Uniswap price in massive units:", uniswapPrice);
-        
+
         // This shows the scale difference
         console2.log("Chainlink vs Uniswap ratio:", uniswapPrice / chainlinkPrice);
 
@@ -375,7 +375,7 @@ contract WETHForkTest is BasicDeploy {
     function test_RealMedianPriceLINK() public {
         // Get prices from Chainlink only (no Uniswap pool for LINK)
         uint256 chainlinkPrice = assetsInstance.getAssetPriceByType(LINK, IASSETS.OracleType.CHAINLINK);
-        
+
         console2.log("LINK Chainlink price:", chainlinkPrice);
 
         // Get actual price (should just be Chainlink since no Uniswap pool)
