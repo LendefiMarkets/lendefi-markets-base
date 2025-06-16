@@ -76,22 +76,22 @@ contract AerodromeTWAPTestTwo is Test {
         uint256 adjustedPrice = (priceRatio * 1e12) / 1e18;
         console2.log("Adjusted WETH price in USDC:", adjustedPrice);
 
-        // Method 3: Get price with USDC precision directly  
+        // Method 3: Get price with USDC precision directly
         uint256 priceWithUSDCPrecision = UniswapTickMath.getPriceFromSqrtPrice(sqrtPriceX96, true, 1e6);
         console2.log("Price with USDC precision (raw):", priceWithUSDCPrecision);
 
         // The raw result is too small due to precision issues, so this approach doesn't work well
         console2.log("Method 3 doesn't work due to precision underflow");
-        
+
         // Method 4: The correct approach that works
         // Use the same calculation as Method 1 and 2: (rawPrice * 1e12) / 1e18
         uint256 correctPrice = UniswapTickMath.getPriceFromSqrtPrice(sqrtPriceX96, true, 1e18);
         console2.log("Price with 1e18 precision (same as raw price):", correctPrice);
-        
+
         // Apply the working formula: multiply by decimal difference, then divide by precision
         uint256 finalWorkingPrice = (correctPrice * 1e12) / 1e18;
         console2.log("Final WETH price using working formula:", finalWorkingPrice);
-        
+
         // This should match our Method 1 result: 2528
         console2.log("All working methods show WETH price:", finalWorkingPrice, "USDC = $", finalWorkingPrice);
     }
