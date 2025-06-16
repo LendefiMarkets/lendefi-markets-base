@@ -92,6 +92,12 @@ contract LendefiMarketFactoryV2 is ILendefiMarketFactory, Initializable, AccessC
     /// @dev Handles governance token rewards for liquidity providers
     address public ecosystem;
 
+    /// @notice Network-specific addresses for oracle validation
+    /// @dev Set during initialization to support different networks
+    address public networkUSDC;
+    address public networkWETH;
+    address public UsdcWethPool;
+
     /// @notice Set of approved base assets that can be used for market creation
     /// @dev Only assets in this allowlist can be used to create new markets
     /// @dev Ensures only tested and verified assets are supported by the protocol
@@ -145,6 +151,9 @@ contract LendefiMarketFactoryV2 is ILendefiMarketFactory, Initializable, AccessC
      * @param _govToken Address of the protocol governance token
      * @param _multisig Address of the Proof of Reserves feed implementation
      * @param _ecosystem Address of the ecosystem contract for rewards
+     * @param _networkUSDC Network-specific USDC address for oracle validation
+     * @param _networkWETH Network-specific WETH address for oracle validation
+     * @param _UsdcWethPool Network-specific USDC/WETH pool for price reference
      *
      * @custom:requirements
      *   - All address parameters must be non-zero
@@ -159,11 +168,19 @@ contract LendefiMarketFactoryV2 is ILendefiMarketFactory, Initializable, AccessC
      * @custom:error-cases
      *   - ZeroAddress: When any required address parameter is zero
      */
-    function initialize(address _timelock, address _govToken, address _multisig, address _ecosystem)
-        external
-        initializer
-    {
-        if (_timelock == address(0) || _govToken == address(0) || _multisig == address(0) || _ecosystem == address(0)) {
+    function initialize(
+        address _timelock,
+        address _govToken,
+        address _multisig,
+        address _ecosystem,
+        address _networkUSDC,
+        address _networkWETH,
+        address _UsdcWethPool
+    ) external initializer {
+        if (
+            _timelock == address(0) || _govToken == address(0) || _multisig == address(0) || _ecosystem == address(0)
+                || _networkUSDC == address(0) || _networkWETH == address(0) || _UsdcWethPool == address(0)
+        ) {
             revert ZeroAddress();
         }
 
@@ -178,7 +195,13 @@ contract LendefiMarketFactoryV2 is ILendefiMarketFactory, Initializable, AccessC
         timelock = _timelock;
         multisig = _multisig;
         ecosystem = _ecosystem;
-        version = 2;
+
+        // Set network-specific addresses
+        networkUSDC = _networkUSDC;
+        networkWETH = _networkWETH;
+        UsdcWethPool = _UsdcWethPool;
+
+        version = 1;
     }
 
     // ========== ADMIN FUNCTIONS ==========
@@ -190,18 +213,22 @@ contract LendefiMarketFactoryV2 is ILendefiMarketFactory, Initializable, AccessC
      * @param _coreImplementation Address of the LendefiCore implementation contract
      * @param _vaultImplementation Address of the LendefiMarketVault implementation contract
      * @param _positionVaultImplementation Address of the position vault implementation contract
+     * @param _assetsModuleImplementation Address of the LendefiAssets implementation contract
+     * @param _PoRFeed Address of the LendefiPoRFeed implementation contract
      *
      * @custom:requirements
      *   - All implementation addresses must be non-zero
-     *   - Caller must have DEFAULT_ADMIN_ROLE
+     *   - Caller must have MANAGER_ROLE
      *
      * @custom:state-changes
      *   - Updates coreImplementation state variable
      *   - Updates vaultImplementation state variable
      *   - Updates positionVaultImplementation state variable
+     *   - Updates assetsModuleImplementation state variable
+     *   - Updates porFeedImplementation state variable
      *
      * @custom:emits ImplementationsSet event with the new implementation addresses
-     * @custom:access-control Restricted to DEFAULT_ADMIN_ROLE
+     * @custom:access-control Restricted to MANAGER_ROLE
      * @custom:error-cases
      *   - ZeroAddress: When any implementation address is zero
      */
@@ -344,6 +371,9 @@ contract LendefiMarketFactoryV2 is ILendefiMarketFactory, Initializable, AccessC
         // Initialize the core contract with market information
         LendefiCore(payable(coreProxy)).initializeMarket(markets[marketOwner][baseAsset]);
 
+        // Note: Market owner MANAGER_ROLE must be granted separately by timelock
+        // since factory doesn't have DEFAULT_ADMIN_ROLE on the vault
+
         emit MarketCreated(marketOwner, baseAsset, coreProxy, vaultProxy, name, symbol, porFeedClone);
     }
 
@@ -356,32 +386,27 @@ contract LendefiMarketFactoryV2 is ILendefiMarketFactory, Initializable, AccessC
     {
         // Clone assets module for this market
         assetsModule = assetsModuleImplementation.clone();
-        if (assetsModule == address(0) || assetsModule.code.length == 0) {
-            revert CloneDeploymentFailed();
-        }
+        if (assetsModule == address(0) || assetsModule.code.length == 0) revert CloneDeploymentFailed();
 
-        // Create core contract using minimal proxy pattern
         address core = coreImplementation.clone();
-        if (core == address(0) || core.code.length == 0) {
-            revert CloneDeploymentFailed();
-        }
+        if (core == address(0) || core.code.length == 0) revert CloneDeploymentFailed();
 
         // Initialize core contract through proxy
         bytes memory initData = abi.encodeWithSelector(
-            LendefiCore.initialize.selector, timelock, govToken, assetsModule, positionVaultImplementation
+            LendefiCore.initialize.selector, timelock, msg.sender, govToken, assetsModule, positionVaultImplementation
         );
         coreProxy = address(new TransparentUpgradeableProxy(core, timelock, initData));
 
         // Initialize the cloned assets module after core is deployed
-        // Note: Using timelock for both admin and multisig roles
+        // Note: Using timelock for admin role and marketOwner for management
         // Using the porFeed implementation as template (assets module will clone it for each asset)
-        IASSETS(assetsModule).initialize(timelock, multisig, porFeedImplementation, coreProxy);
+        IASSETS(assetsModule).initialize(
+            timelock, msg.sender, porFeedImplementation, coreProxy, networkUSDC, networkWETH, UsdcWethPool
+        );
 
         // Create vault contract using minimal proxy pattern
         address baseVault = vaultImplementation.clone();
-        if (baseVault == address(0) || baseVault.code.length == 0) {
-            revert CloneDeploymentFailed();
-        }
+        if (baseVault == address(0) || baseVault.code.length == 0) revert CloneDeploymentFailed();
 
         // Initialize vault contract through proxy
         bytes memory vaultData = abi.encodeCall(
