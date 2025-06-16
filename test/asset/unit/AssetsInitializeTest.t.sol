@@ -29,8 +29,12 @@ contract AssetsInitializeTest is BasicDeploy {
 
         // Create initialization data
         LendefiPoRFeed porFeedImpl = new LendefiPoRFeed();
+        
+        // Get network addresses for test
+        (address networkUSDC, address networkWETH, address UsdcWethPool) = getNetworkAddresses();
+        
         initData = abi.encodeCall(
-            LendefiAssets.initialize, (timelockAddr, charlie, address(porFeedImpl), ethereum)
+            LendefiAssets.initialize, (timelockAddr, charlie, address(porFeedImpl), ethereum, networkUSDC, networkWETH, UsdcWethPool)
         );
     }
 
@@ -78,14 +82,17 @@ contract AssetsInitializeTest is BasicDeploy {
         LendefiAssets assetsModule = LendefiAssets(payable(address(proxy)));
 
         LendefiPoRFeed porFeedImpl = new LendefiPoRFeed();
+        
+        // Get network addresses for test
+        (address networkUSDC, address networkWETH, address UsdcWethPool) = getNetworkAddresses();
 
         // Test with zero address for timelock
         vm.expectRevert(abi.encodeWithSignature("ZeroAddressNotAllowed()"));
-        assetsModule.initialize(address(0), gnosisSafe, address(porFeedImpl), ethereum);
+        assetsModule.initialize(address(0), gnosisSafe, address(porFeedImpl), ethereum, networkUSDC, networkWETH, UsdcWethPool);
 
         // Test with zero address for market owner
         vm.expectRevert(abi.encodeWithSignature("ZeroAddressNotAllowed()"));
-        assetsModule.initialize(timelockAddr, address(0), address(porFeedImpl), ethereum);
+        assetsModule.initialize(timelockAddr, address(0), address(porFeedImpl), ethereum, networkUSDC, networkWETH, UsdcWethPool);
     }
 
     function test_PreventReinitialization() public {
@@ -95,8 +102,12 @@ contract AssetsInitializeTest is BasicDeploy {
 
         // Try to initialize again
         LendefiPoRFeed porFeedImpl = new LendefiPoRFeed();
+        
+        // Get network addresses for test
+        (address networkUSDC, address networkWETH, address UsdcWethPool) = getNetworkAddresses();
+        
         vm.expectRevert(abi.encodeWithSignature("InvalidInitialization()"));
-        assetsContract.initialize(timelockAddr, charlie, address(porFeedImpl), ethereum);
+        assetsContract.initialize(timelockAddr, charlie, address(porFeedImpl), ethereum, networkUSDC, networkWETH, UsdcWethPool);
     }
 
     function test_RoleExclusivity() public {
