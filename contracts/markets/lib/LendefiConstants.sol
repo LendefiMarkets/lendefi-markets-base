@@ -44,16 +44,16 @@ library LendefiConstants {
 
     /// @notice Base chain ID
     uint256 internal constant BASE_CHAIN_ID = 8453;
-    
+
     /// @notice Base sequencer uptime feed address
     address internal constant SEQUENCER_FEED = 0xBCF85224fc0756B9Fa45aA7892530B47e10b6433;
-    
+
     /// @notice Grace period after sequencer restart (1 hour)
     uint256 internal constant GRACE_PERIOD = 3600;
-    
+
     /// @notice Base mainnet USDC address
     address internal constant BASE_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
-    
-    /// @notice Base mainnet WETH address  
+
+    /// @notice Base mainnet WETH address
     address internal constant BASE_WETH = 0x4200000000000000000000000000000000000006;
 }
