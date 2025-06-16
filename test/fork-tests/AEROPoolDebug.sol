@@ -58,16 +58,16 @@ contract AEROPoolDebug is Test {
         // Since this is NOT a stable pool (both tokens have 18 decimals), we need to convert AERO/WETH to USD
         // The raw price represents AERO per WETH with 1e18 precision
         console2.log("Raw price represents AERO per WETH with 1e18 precision");
-        
+
         // For actual calculation, we need the WETH/USD price from our working pool
         // We know WETH = $2528 from our previous test
         uint256 wethPriceUSD = 2528; // From our WETH/USDC test
-        
+
         // AERO price in USD = (AERO/WETH ratio) * (WETH price in USD)
         // aeroPriceRaw = 279141756523329 means 279141756523329/1e18 = 0.000279141756523329 AERO per WETH
         // So 1 AERO = 1 / 0.000279141756523329 WETH = 3582.7 WETH
         // That's clearly wrong - let me recalculate
-        
+
         // Actually: if AERO is token1 and we call getRawPrice(pool, false, 1e18, period)
         // This should give us token0/token1 = WETH/AERO price
         // Let's check what we actually get
@@ -81,12 +81,12 @@ contract AEROPoolDebug is Test {
                 // aeroPriceRaw = 279141756523329 means 279141756523329/1e18 = 0.000279141756523329 WETH per AERO
                 // So 1 AERO = 0.000279141756523329 WETH
                 // In USD: 1 AERO = 0.000279141756523329 * $2528 = $0.7056...
-                
+
                 // Calculate: AERO price = (WETH per AERO) * (WETH price in USD)
                 // But we need to handle decimals correctly
                 uint256 aeroPriceUSD = (aeroPriceRaw * wethPriceUSD) / 1e18;
                 console2.log("AERO price in USD (raw calculation):", aeroPriceUSD);
-                
+
                 // Convert to cents for better display
                 uint256 aeroPriceCents = (aeroPriceRaw * wethPriceUSD * 100) / 1e18;
                 console2.log("AERO price in cents:", aeroPriceCents);
