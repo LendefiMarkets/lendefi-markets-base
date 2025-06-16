@@ -424,6 +424,7 @@ contract LendefiCore is
      *
      * @custom:emits
      *   - PositionCreated(msg.sender, positionId, isIsolated)
+     * @return positionId The unique identifier for the newly created position
      */
     function createPosition(address asset, bool isIsolated)
         external
