@@ -528,7 +528,14 @@ contract LendefiMarketVaultV2 is
      * @custom:automation Part of Chainlink's AutomationCompatibleInterface
      * @custom:interval Updates occur based on the interval state variable (default 12 hours)
      */
-    function performUpkeep(bytes calldata /* performData */ ) external override {
+    /**
+     * @notice Performs upkeep tasks when called by Chainlink Automation
+     * @param performData Encoded data for upkeep (unused in this implementation)
+     */
+    function performUpkeep(bytes calldata performData) external override {
+        // Suppress unused parameter warning
+        performData;
+
         if ((block.timestamp - lastTimeStamp) > interval) {
             lastTimeStamp = block.timestamp;
             counter = counter + 1;
@@ -644,12 +651,21 @@ contract LendefiMarketVaultV2 is
      * @custom:interval Uses the contract's interval variable to determine timing
      * @custom:gas-efficient View function with minimal gas consumption for frequent calls
      */
-    function checkUpkeep(bytes calldata /* checkData */ )
+    /**
+     * @notice Checks if upkeep is needed for Chainlink Automation
+     * @param checkData Encoded check data (unused in this implementation)
+     * @return upkeepNeeded True if the interval has passed and upkeep is needed
+     * @return performData Encoded data to pass to performUpkeep (unused)
+     */
+    function checkUpkeep(bytes calldata checkData)
         external
         view
         override
         returns (bool upkeepNeeded, bytes memory performData)
     {
+        // Suppress unused parameter warning
+        checkData;
+
         upkeepNeeded = (block.timestamp - lastTimeStamp) > interval;
         performData = "0x00";
     }
@@ -1046,10 +1062,34 @@ contract LendefiMarketVaultV2 is
     }
 
     // ========== INTERNAL FUNCTIONS ==========
+    /**
+     * @notice Authorizes contract upgrades through the UUPS proxy pattern
+     * @dev Internal function called by the UUPS upgrade mechanism to verify
+     *      that the caller has permission to upgrade the contract implementation.
+     *      Also increments the version number for tracking purposes.
+     *
+     * @custom:access-control Restricted to UPGRADER_ROLE
+     * @custom:state-changes Increments version number with each upgrade
+     * @custom:upgrade-safety Ensures only authorized parties can upgrade the vault
+     */
+    /**
+     * @notice Authorizes contract upgrades through the UUPS proxy pattern
+     * @param newImplementation Address of the new implementation (unused in this function)
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyRole(LendefiConstants.UPGRADER_ROLE) {
+        // Suppress unused parameter warning
+        newImplementation;
+
+        version++;
+    }
 
     /**
      * @dev Calculates the virtual fee shares that would be minted if fees were collected now.
      * This represents the protocol's earned but uncollected commission.
+     */
+    /**
+     * @dev Calculates the virtual fee shares that would be minted if fees were collected now
+     * @return The number of virtual shares representing uncollected fees
      */
     function _calculateVirtualFeeShares() internal view returns (uint256) {
         uint256 supply = totalSupply();
@@ -1069,6 +1109,12 @@ contract LendefiMarketVaultV2 is
      * @dev Internal conversion function (from assets to shares) with support for rounding direction.
      * Modified to account for protocol commission by adjusting the total supply calculation.
      */
+    /**
+     * @dev Converts asset amount to shares including virtual fee shares
+     * @param assets Amount of assets to convert
+     * @param rounding Math rounding mode to use
+     * @return Number of shares equivalent to the asset amount
+     */
     function _convertToShares(uint256 assets, Math.Rounding rounding)
         internal
         view
@@ -1076,8 +1122,7 @@ contract LendefiMarketVaultV2 is
         override
         returns (uint256)
     {
-        uint256 supply = totalSupply();
-        uint256 virtualSupply = supply + _calculateVirtualFeeShares();
+        uint256 virtualSupply = totalSupply() + _calculateVirtualFeeShares();
 
         return Math.mulDiv(assets, virtualSupply + 10 ** _decimalsOffset(), totalAssets() + 1, rounding);
     }
@@ -1086,6 +1131,12 @@ contract LendefiMarketVaultV2 is
      * @dev Internal conversion function (from shares to assets) with support for rounding direction.
      * Modified to account for protocol commission by adjusting the total supply calculation.
      */
+    /**
+     * @dev Converts shares to asset amount including virtual fee shares
+     * @param shares Number of shares to convert
+     * @param rounding Math rounding mode to use
+     * @return Amount of assets equivalent to the shares
+     */
     function _convertToAssets(uint256 shares, Math.Rounding rounding)
         internal
         view
@@ -1093,23 +1144,8 @@ contract LendefiMarketVaultV2 is
         override
         returns (uint256)
     {
-        uint256 supply = totalSupply();
-        uint256 virtualSupply = supply + _calculateVirtualFeeShares();
+        uint256 virtualSupply = totalSupply() + _calculateVirtualFeeShares();
 
         return Math.mulDiv(shares, totalAssets() + 1, virtualSupply + 10 ** _decimalsOffset(), rounding);
-    }
-
-    /**
-     * @notice Authorizes contract upgrades through the UUPS proxy pattern
-     * @dev Internal function called by the UUPS upgrade mechanism to verify
-     *      that the caller has permission to upgrade the contract implementation.
-     *      Also increments the version number for tracking purposes.
-     *
-     * @custom:access-control Restricted to UPGRADER_ROLE
-     * @custom:state-changes Increments version number with each upgrade
-     * @custom:upgrade-safety Ensures only authorized parties can upgrade the vault
-     */
-    function _authorizeUpgrade(address) internal override onlyRole(LendefiConstants.UPGRADER_ROLE) {
-        version++;
     }
 }
