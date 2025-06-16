@@ -611,9 +611,13 @@ contract LendefiAssetsTest is BasicDeploy {
         // This test needs a UUPS proxy, not a cloned assets module
         // Deploy a proper assets proxy for upgrade testing
         LendefiPoRFeed porFeedImpl = new LendefiPoRFeed();
+        
+        // Get network addresses for test
+        (address networkUSDC, address networkWETH, address UsdcWethPool) = getNetworkAddresses();
+        
         bytes memory initData = abi.encodeCall(
             LendefiAssets.initialize,
-            (address(timelockInstance), charlie, address(porFeedImpl), ethereum)
+            (address(timelockInstance), charlie, address(porFeedImpl), ethereum, networkUSDC, networkWETH, UsdcWethPool)
         );
         address payable assetsProxy = payable(Upgrades.deployUUPSProxy("LendefiAssets.sol", initData));
         LendefiAssets assetsProxyInstance = LendefiAssets(assetsProxy);
@@ -832,8 +836,12 @@ contract LendefiAssetsTest is BasicDeploy {
 
         // Create initialization data
         LendefiPoRFeed porFeedImpl = new LendefiPoRFeed();
+        
+        // Get network addresses for test
+        (address networkUSDC, address networkWETH, address UsdcWethPool) = getNetworkAddresses();
+        
         bytes memory initData = abi.encodeCall(
-            LendefiAssets.initialize, (timelockAddr, charlie, address(porFeedImpl), ethereum)
+            LendefiAssets.initialize, (timelockAddr, charlie, address(porFeedImpl), ethereum, networkUSDC, networkWETH, UsdcWethPool)
         );
         // Deploy LendefiAssets with initialization
         address payable proxy = payable(Upgrades.deployUUPSProxy("LendefiAssets.sol", initData));
