@@ -385,7 +385,15 @@ interface IASSETS {
      * @param networkWETH Network-specific WETH address for oracle validation
      * @param UsdcWethPool Network-specific USDC/WETH pool for price reference
      */
-    function initialize(address timelock, address multisig, address porFeed, address coreAddress, address networkUSDC, address networkWETH, address UsdcWethPool) external;
+    function initialize(
+        address timelock,
+        address multisig,
+        address porFeed,
+        address coreAddress,
+        address networkUSDC,
+        address networkWETH,
+        address UsdcWethPool
+    ) external;
 
     /**
      * @notice Register a Uniswap V3 pool as an oracle for an asset
@@ -421,7 +429,6 @@ interface IASSETS {
      * @param liquidationFee The new liquidation fee (in basis points * 100)
      */
     function updateTierConfig(CollateralTier tier, uint256 jumpRate, uint256 liquidationFee) external;
-
 
     /**
      * @notice Pause the contract
