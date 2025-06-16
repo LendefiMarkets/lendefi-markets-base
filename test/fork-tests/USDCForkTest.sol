@@ -310,7 +310,6 @@ contract USDCForkTest is BasicDeploy {
         console2.log("Successfully tested PoolLiquidityLimitReached error");
     }
 
-
     function test_getAnyPoolTokenPriceInUSD_ETHUSDC() public {
         uint256 ethPriceInUSD = assetsInstance.getAssetPrice(WETH);
         console2.log("ETH price in USD (from ETH/USDC pool):", ethPriceInUSD);
