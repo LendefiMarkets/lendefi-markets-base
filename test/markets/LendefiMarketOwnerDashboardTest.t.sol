@@ -286,7 +286,7 @@ contract LendefiMarketOwnerDashboardTest is BasicDeploy {
         address david = makeAddr("david");
 
         // Grant MARKET_OWNER_ROLE to david
-        vm.prank(address(timelockInstance));
+        vm.prank(gnosisSafe);
         marketFactoryInstance.grantRole(LendefiConstants.MARKET_OWNER_ROLE, david);
 
         // David creates his own market
