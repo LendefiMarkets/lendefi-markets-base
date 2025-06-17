@@ -810,8 +810,8 @@ contract BasicDeploy is Test {
         require(marketFactoryInstance.coreImplementation() != address(0), "Core implementation not set");
         require(marketFactoryInstance.vaultImplementation() != address(0), "Vault implementation not set");
 
-        // Grant MARKET_OWNER_ROLE to charlie (done by timelock which has DEFAULT_ADMIN_ROLE)
-        vm.prank(address(timelockInstance));
+        // Grant MARKET_OWNER_ROLE to charlie (done by multisig which has DEFAULT_ADMIN_ROLE)
+        vm.prank(gnosisSafe);
         marketFactoryInstance.grantRole(LendefiConstants.MARKET_OWNER_ROLE, charlie);
 
         // Add base asset to allowlist (done by multisig which has MANAGER_ROLE)
