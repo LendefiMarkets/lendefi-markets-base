@@ -769,16 +769,18 @@ contract BasicDeploy is Test {
         // Assert that upgrade was successful
         assertEq(marketFactoryInstanceV2.version(), 2, "Version not incremented to 2");
         assertFalse(implAddressV2 == implAddressV1, "Implementation address didn't change");
-        assertTrue(
-            marketFactoryInstanceV2.hasRole(DEFAULT_ADMIN_ROLE, gnosisSafe), "Lost DEFAULT_ADMIN_ROLE"
-        );
+        assertTrue(marketFactoryInstanceV2.hasRole(DEFAULT_ADMIN_ROLE, gnosisSafe), "Lost DEFAULT_ADMIN_ROLE");
 
         // Test role management still works - gnosisSafe should have admin control
         vm.startPrank(gnosisSafe);
         marketFactoryInstanceV2.grantRole(UPGRADER_ROLE, address(timelockInstance));
-        assertTrue(marketFactoryInstanceV2.hasRole(UPGRADER_ROLE, address(timelockInstance)), "Should grant UPGRADER_ROLE");
+        assertTrue(
+            marketFactoryInstanceV2.hasRole(UPGRADER_ROLE, address(timelockInstance)), "Should grant UPGRADER_ROLE"
+        );
         marketFactoryInstanceV2.revokeRole(UPGRADER_ROLE, address(timelockInstance));
-        assertFalse(marketFactoryInstanceV2.hasRole(UPGRADER_ROLE, address(timelockInstance)), "Should revoke UPGRADER_ROLE");
+        assertFalse(
+            marketFactoryInstanceV2.hasRole(UPGRADER_ROLE, address(timelockInstance)), "Should revoke UPGRADER_ROLE"
+        );
         vm.stopPrank();
     }
 
