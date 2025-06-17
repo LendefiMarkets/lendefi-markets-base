@@ -373,6 +373,14 @@ interface IASSETS {
      */
     error AssetListTooLarge(uint32 maxAllowedAssets);
 
+    /**
+     * @notice Error thrown when an invalid pool configuration is provided
+     * @param pool Address of the invalid pool
+     * @param symbol0 Symbol of token0 in the pool
+     * @param symbol1 Symbol of token1 in the pool
+     */
+    error InvalidPool(address pool, string symbol0, string symbol1);
+
     // ==================== FUNCTIONS ====================
 
     /**
