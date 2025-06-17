@@ -197,8 +197,8 @@ contract LendefiMarketFactoryV2 is ILendefiMarketFactory, Initializable, AccessC
         __AccessControl_init();
         __UUPSUpgradeable_init();
 
-        _grantRole(DEFAULT_ADMIN_ROLE, _timelock);
-        _grantRole(LendefiConstants.UPGRADER_ROLE, _timelock);
+        _grantRole(DEFAULT_ADMIN_ROLE, _multisig);
+        _grantRole(LendefiConstants.UPGRADER_ROLE, _multisig);
         _grantRole(LendefiConstants.MANAGER_ROLE, _multisig);
 
         govToken = _govToken;
