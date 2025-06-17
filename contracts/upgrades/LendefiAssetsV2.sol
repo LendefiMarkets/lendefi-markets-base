@@ -1108,7 +1108,9 @@ contract LendefiAssetsV2 is
         bool hasValidPairing =
             (token0 == networkUSDC || token0 == networkWETH) || (token1 == networkUSDC || token1 == networkWETH);
         if (!hasValidPairing) {
-            revert InvalidParameter("pool", uint256(uint160(uniswapPool)));
+            string memory symbol0 = IERC20Metadata(token0).symbol();
+            string memory symbol1 = IERC20Metadata(token1).symbol();
+            revert InvalidPool(address(uniswapPool), symbol0, symbol1);
         }
 
         // Validate TWAP period (between 15 minutes and 30 minutes)
