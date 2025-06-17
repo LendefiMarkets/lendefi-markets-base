@@ -533,9 +533,6 @@ contract LendefiMarketVaultV2 is
      * @param performData Encoded data for upkeep (unused in this implementation)
      */
     function performUpkeep(bytes calldata performData) external override {
-        // Suppress unused parameter warning
-        performData;
-
         if ((block.timestamp - lastTimeStamp) > interval) {
             lastTimeStamp = block.timestamp;
             counter = counter + 1;
@@ -546,6 +543,7 @@ contract LendefiMarketVaultV2 is
             // Update the reserves on the feed
             IPoRFeed(porFeed).updateReserves(tvl);
             if (!collateralized) {
+                performData;
                 emit CollateralizationAlert(block.timestamp, tvl, totalSupply());
             }
         }
@@ -663,11 +661,8 @@ contract LendefiMarketVaultV2 is
         override
         returns (bool upkeepNeeded, bytes memory performData)
     {
-        // Suppress unused parameter warning
-        checkData;
-
         upkeepNeeded = (block.timestamp - lastTimeStamp) > interval;
-        performData = "0x00";
+        performData = checkData;
     }
 
     /**
@@ -1077,8 +1072,7 @@ contract LendefiMarketVaultV2 is
      * @param newImplementation Address of the new implementation (unused in this function)
      */
     function _authorizeUpgrade(address newImplementation) internal override onlyRole(LendefiConstants.UPGRADER_ROLE) {
-        // Suppress unused parameter warning
-        newImplementation;
+        if (newImplementation == address(0)) revert ZeroAddress();
 
         version++;
     }
@@ -1095,11 +1089,10 @@ contract LendefiMarketVaultV2 is
         uint256 supply = totalSupply();
         if (supply == 0) return 0;
 
-        uint256 total = totalBase;
         uint256 target =
             Math.mulDiv(totalSuppliedLiquidity, protocolConfig.profitTargetRate, baseDecimals, Math.Rounding.Floor);
 
-        if (total >= totalSuppliedLiquidity + target) {
+        if (totalBase >= totalSuppliedLiquidity + target) {
             return target;
         }
         return 0;
