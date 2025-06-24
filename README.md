@@ -261,6 +261,18 @@ The protocol's architecture aligns with emerging regulations:
 - Clear custody delineation
 - Qualified custodian standards through smart contracts
 
+## Live Deployments
+
+### Base Sepolia Testnet
+
+The Lendefi Protocol is currently deployed and operational on Base Sepolia testnet:
+
+- **Chain ID**: 84532
+- **Block Explorer**: https://sepolia.basescan.org
+- **Factory**: `0xB4C258350fAbe1d9b9cb3606901Ed8241DC3CF99`
+
+For complete deployment addresses and configuration details, see `script/deploys.md`.
+
 ## Getting Started
 
 ### Deploying a New Market
@@ -384,11 +396,13 @@ foundryup
 git clone https://github.com/nebula-labs-xyz/lendefi-markets.git
 cd lendefi-markets
 
-# Configure environment
-echo "ALCHEMY_API_KEY=your_api_key_here" >> .env
+# Configure environment for Base Sepolia
+cat > .env << EOF
+ALCHEMY_API_KEY=your_alchemy_api_key
+EOF
 
 # Build and test
 npm install
 npm run build
-npm run test
+forge test -v --ffi
 ```
