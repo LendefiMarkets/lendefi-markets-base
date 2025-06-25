@@ -122,7 +122,7 @@ contract LendefiMarketFactory is ILendefiMarketFactory, Initializable, AccessCon
 
     /// @notice Set of all market owners who have created markets
     /// @dev Used for enumeration and iteration over all market owners with guaranteed uniqueness
-    EnumerableSet.AddressSet private allMarketOwners;
+    EnumerableSet.AddressSet internal allMarketOwners;
 
     /// @notice Array of all market configurations created by this factory
     /// @dev Provides direct access to all market data across all owners
