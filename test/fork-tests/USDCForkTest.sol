@@ -31,7 +31,7 @@ contract USDCForkTest is BasicDeploy {
 
     function setUp() public {
         // Fork Base mainnet at a specific block
-        mainnetFork = vm.createFork("mainnet", 31574198); // Base mainnet block
+        mainnetFork = vm.createFork("base", 31574198); // Base mainnet block
         vm.selectFork(mainnetFork);
 
         // Deploy protocol normally

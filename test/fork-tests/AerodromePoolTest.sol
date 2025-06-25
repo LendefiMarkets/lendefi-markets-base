@@ -21,7 +21,7 @@ contract AerodromeTWAP is Test {
     uint256 mainnetFork;
 
     function setUp() public {
-        mainnetFork = vm.createFork("mainnet", 31574198);
+        mainnetFork = vm.createFork("base", 31574198);
         vm.selectFork(mainnetFork);
         vm.warp(1732792829 + 3600);
     }
