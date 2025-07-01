@@ -51,38 +51,58 @@ contract LendefiAssets is
     using UniswapTickMath for int24;
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    // ==================== CONSTANTS ====================
-
     // ==================== STATE VARIABLES ====================
+    // Optimized for storage packing to reduce gas costs
 
+    // Slot 1: Pack small types (1 byte used, 31 bytes available for future expansion)
     /// @notice Current version of the contract implementation
     /// @dev Incremented on each upgrade
     uint8 public version;
+
+    // Slot 2: Core protocol address
     /// @notice Address of the core protocol contract
+    /// @dev Used for cross-contract calls and validation
     address public coreAddress;
+
+    // Slot 3: Proof of Reserve factory address
     /// @notice Address of the Proof of Reserve factory
     address public porFeed;
+
+    // Slot 4: Governance timelock address
     /// @notice Address of the timelock contract
     address public timelock;
-    /// @notice Network-specific USDC address
+
+    // Slot 5: Network-specific USDC address for BSC oracle validation
+    /// @dev Set during initialization to support different networks
     address public networkUSDC;
-    /// @notice Network-specific WETH address
+
+    // Slot 6: Network-specific WETH address for BSC oracle validation
     address public networkWETH;
-    /// @notice Uniswap pool address for USDC/WETH
+
+    // Slot 7: USDT/WETH pool address for BSC price validation
     address public usdcWethPool;
 
-    /// @notice Information about the currently pending upgrade request
-    /// @dev Stores implementation address and scheduling details
-    UpgradeRequest public pendingUpgrade;
-
+    // Slot 8: Core protocol interface instance
     /// @notice Interface to interact with the core protocol
     /// @dev Used to query protocol state and perform operations
     IPROTOCOL internal lendefiInstance;
 
+    // Slot 9: Pending upgrade information
+    /// @notice Information about the currently pending upgrade request
+    /// @dev Stores implementation address and scheduling details
+    UpgradeRequest public pendingUpgrade;
+
+    // Slot 10: Global oracle configuration parameters
+    /// @notice Global oracle configuration parameters
+    /// @dev Controls oracle freshness, volatility checks, and circuit breaker thresholds
+    MainOracleConfig public mainOracleConfig;
+
+    // Slot 11+: Set of all listed asset addresses
     /// @notice Set of all listed asset addresses
     /// @dev Uses OpenZeppelin's EnumerableSet for efficient membership checks
     EnumerableSet.AddressSet internal listedAssets;
 
+    // Mappings (each gets its own storage tree)
     /// @notice Mapping of asset address to its configuration
     /// @dev Stores complete asset settings including thresholds and oracle configs
     mapping(address => Asset) internal assetInfo;
@@ -90,10 +110,6 @@ contract LendefiAssets is
     /// @notice Configuration of rates for each collateral tier
     /// @dev Maps tier enum to its associated rates struct
     mapping(CollateralTier => TierRates) public tierConfig;
-
-    /// @notice Global oracle configuration parameters
-    /// @dev Controls oracle freshness, volatility checks, and circuit breaker thresholds
-    MainOracleConfig public mainOracleConfig;
 
     /// @notice Tracks whether circuit breaker is active for an asset
     /// @dev True if price feed is considered unreliable
@@ -789,7 +805,6 @@ contract LendefiAssets is
             revert CircuitBreakerActive(asset);
         }
 
-        // Load into memory once
         uint8 chainlinkActive = assetInfo[asset].chainlinkConfig.active;
         uint8 uniswapActive = assetInfo[asset].poolConfig.active;
 
@@ -960,9 +975,7 @@ contract LendefiAssets is
 
         tokenPriceInUSD = getAnyPoolTokenPriceInUSD(config.pool, asset, usdcWethPool, config.twapPeriod); // Price on 1e6 scale, USDC
 
-        if (tokenPriceInUSD <= 0) {
-            revert OracleInvalidPrice(config.pool, int256(tokenPriceInUSD));
-        }
+        if (tokenPriceInUSD <= 0) revert OracleInvalidPrice(config.pool, int256(tokenPriceInUSD));
     }
 
     /**
