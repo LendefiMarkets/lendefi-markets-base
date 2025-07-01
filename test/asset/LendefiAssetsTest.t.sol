@@ -33,9 +33,7 @@ contract LendefiAssetsTest is BasicDeploy {
     function setUp() public {
         deployMarketsWithUSDC();
 
-        // TGE setup
-        vm.prank(guardian);
-        tokenInstance.initializeTGE(address(ecoInstance), address(treasuryInstance));
+        // TGE already initialized in deployMarketsWithUSDC()
         vm.warp(block.timestamp + 90 days);
 
         // Deploy mock tokens (USDC already deployed by deployCompleteWithOracle())
