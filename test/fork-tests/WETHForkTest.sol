@@ -51,6 +51,10 @@ contract WETHForkTest is BasicDeploy {
         _deployGovernor();
         _deployMarketFactory();
 
+        // TGE setup - MUST be done before market creation
+        vm.prank(guardian);
+        tokenInstance.initializeTGE(address(ecoInstance), address(treasuryInstance));
+
         // Deploy WETH market instead of USDC market
         _deployMarket(WETH, "Lendefi Yield Token WETH", "LYTWETH");
 
@@ -70,10 +74,6 @@ contract WETHForkTest is BasicDeploy {
         timelockInstance.grantRole(EXECUTOR_ROLE, address(govInstance));
         timelockInstance.grantRole(CANCELLER_ROLE, address(govInstance));
         vm.stopPrank();
-
-        // TGE setup - but DON'T warp time
-        vm.prank(guardian);
-        tokenInstance.initializeTGE(address(ecoInstance), address(treasuryInstance));
 
         // Configure assets - WETH is now base asset, others are collateral
         _configureWETH();
