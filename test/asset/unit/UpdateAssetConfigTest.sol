@@ -28,9 +28,7 @@ contract UpdateAssetConfigTest is BasicDeploy {
         // Use the updated deployment function that includes Oracle setup
         deployMarketsWithUSDC();
 
-        // TGE setup
-        vm.prank(guardian);
-        tokenInstance.initializeTGE(address(ecoInstance), address(treasuryInstance));
+        // TGE already initialized in deployMarketsWithUSDC()
 
         // Deploy test token and oracle for this specific test
         testToken = new MockRWA("Test Token", "TEST");
