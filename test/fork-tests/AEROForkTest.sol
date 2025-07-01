@@ -49,6 +49,10 @@ contract AeroForkTest is BasicDeploy {
         _deployGovernor();
         _deployMarketFactory();
 
+        // TGE setup - MUST be done before market creation
+        vm.prank(guardian);
+        tokenInstance.initializeTGE(address(ecoInstance), address(treasuryInstance));
+
         // Deploy AERO market
         _deployMarket(AERO, "Lendefi Yield Token", "LYTAERO");
 
@@ -68,10 +72,6 @@ contract AeroForkTest is BasicDeploy {
         timelockInstance.grantRole(EXECUTOR_ROLE, address(govInstance));
         timelockInstance.grantRole(CANCELLER_ROLE, address(govInstance));
         vm.stopPrank();
-
-        // TGE setup - but DON'T warp time
-        vm.prank(guardian);
-        tokenInstance.initializeTGE(address(ecoInstance), address(treasuryInstance));
 
         // Configure assets - only WETH and AERO since we have pools for them
         _configureWETH();
