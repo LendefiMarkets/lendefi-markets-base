@@ -14,7 +14,6 @@ runs = 1000
 [rpc_endpoints]
 base = "https://base-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}"
 base-sepolia = "${BASE_SEPOLIA_RPC_URL}"
-anvil = "http://localhost:8545"
 
 [profile.rpc_storage_caching]
 chains = "all"  # or specific chain IDs
